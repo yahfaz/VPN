@@ -1,0 +1,189 @@
+import { useEffect, useState } from 'react';
+import clsx from 'clsx';
+import { Clock, Shield, Lock, ChevronRight } from 'lucide-react';
+import { useVPNStore } from '../store/vpnStore';
+import { ConnectionButton } from '../components/ConnectionButton';
+import { SpeedChart } from '../components/SpeedChart';
+import { ServerCard } from '../components/ServerCard';
+import { useNavigate } from 'react-router-dom';
+
+function useTimer(connectedSince: Date | null) {
+  const [elapsed, setElapsed] = useState('00:00:00');
+  useEffect(() => {
+    if (!connectedSince) { setElapsed('00:00:00'); return; }
+    const id = setInterval(() => {
+      const diff = Math.floor((Date.now() - connectedSince.getTime()) / 1000);
+      const h = Math.floor(diff / 3600).toString().padStart(2, '0');
+      const m = Math.floor((diff % 3600) / 60).toString().padStart(2, '0');
+      const s = (diff % 60).toString().padStart(2, '0');
+      setElapsed(`${h}:${m}:${s}`);
+    }, 1000);
+    return () => clearInterval(id);
+  }, [connectedSince]);
+  return elapsed;
+}
+
+export function Dashboard() {
+  const {
+    status, selectedServer, connectedServer, connectedSince,
+    realIP, vpnIP, protocol, updateSpeed,
+    cleanWeb, killSwitch, rotatingIP,
+  } = useVPNStore();
+  const navigate = useNavigate();
+  const elapsed = useTimer(connectedSince);
+
+  useEffect(() => {
+    const id = setInterval(updateSpeed, 1000);
+    return () => clearInterval(id);
+  }, [updateSpeed]);
+
+  const isConnected = status === 'connected';
+  const displayServer = connectedServer ?? selectedServer;
+
+  return (
+    <div className="flex-1 overflow-y-auto p-6 space-y-5">
+      {/* Hero connection section */}
+      <div className={clsx(
+        'card p-8 text-center relative overflow-hidden',
+        isConnected && 'border-teal-500/30'
+      )}>
+        {/* Background gradient */}
+        <div className={clsx(
+          'absolute inset-0 pointer-events-none transition-all duration-1000',
+          isConnected
+            ? 'bg-gradient-to-b from-teal-500/5 via-transparent to-transparent'
+            : 'bg-gradient-to-b from-accent-blue/5 via-transparent to-transparent'
+        )} />
+
+        {/* Status badge */}
+        <div className={clsx(
+          'inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-semibold mb-6',
+          isConnected
+            ? 'bg-teal-500/15 text-teal-400 border border-teal-500/30'
+            : status === 'connecting'
+            ? 'bg-accent-blue/15 text-accent-blue border border-accent-blue/30'
+            : 'bg-red-500/15 text-red-400 border border-red-500/30'
+        )}>
+          <div className={clsx(
+            'w-2 h-2 rounded-full',
+            isConnected ? 'bg-teal-400 animate-pulse' : status === 'connecting' ? 'bg-accent-blue animate-pulse' : 'bg-red-400'
+          )} />
+          {isConnected ? 'Protected' : status === 'connecting' ? 'Connecting...' : status === 'disconnecting' ? 'Disconnecting...' : 'Not Protected'}
+        </div>
+
+        <div className="flex justify-center mb-6">
+          <ConnectionButton />
+        </div>
+
+        {/* IP addresses */}
+        <div className="grid grid-cols-2 gap-3 max-w-sm mx-auto mt-6">
+          <div className="bg-navy-800 rounded-xl p-3 text-left">
+            <p className="text-gray-500 text-xs mb-1">Your IP</p>
+            <p className="text-white text-sm font-mono font-medium">{realIP}</p>
+            <p className="text-gray-500 text-xs mt-0.5">Real IP</p>
+          </div>
+          <div className="bg-navy-800 rounded-xl p-3 text-left">
+            <p className="text-gray-500 text-xs mb-1">VPN IP</p>
+            <p className={clsx('text-sm font-mono font-medium', isConnected ? 'text-teal-400' : 'text-gray-600')}>
+              {isConnected ? vpnIP : '—.—.—.—'}
+            </p>
+            <p className="text-gray-500 text-xs mt-0.5">{isConnected ? 'Masked' : 'Unmasked'}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Selected server */}
+      <div className="card p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
+            {isConnected ? 'Connected Server' : 'Quick Connect'}
+          </h3>
+          <button
+            onClick={() => navigate('/servers')}
+            className="flex items-center gap-1 text-xs text-accent-blue hover:text-blue-300 transition-colors"
+          >
+            Change <ChevronRight size={12} />
+          </button>
+        </div>
+
+        {displayServer && (
+          <div className="flex items-center gap-3 p-3 bg-navy-800 rounded-xl">
+            <span className="text-3xl">{displayServer.flag}</span>
+            <div className="flex-1">
+              <p className="text-white font-semibold">{displayServer.city ?? displayServer.country}</p>
+              <p className="text-gray-400 text-sm">{displayServer.country} · {displayServer.serverCount} servers</p>
+            </div>
+            <div className="text-right">
+              <p className={clsx('text-sm font-mono font-bold',
+                displayServer.ping < 50 ? 'text-teal-400' : displayServer.ping < 120 ? 'text-yellow-400' : 'text-red-400'
+              )}>
+                {displayServer.ping}ms
+              </p>
+              <p className="text-xs text-gray-500">{displayServer.load}% load</p>
+            </div>
+          </div>
+        )}
+
+        {/* Connection info */}
+        <div className="grid grid-cols-3 gap-2 mt-3">
+          <div className="bg-navy-800 rounded-lg p-2 text-center">
+            <Shield size={14} className="text-accent-blue mx-auto mb-1" />
+            <p className="text-xs text-gray-400">Protocol</p>
+            <p className="text-white text-xs font-medium mt-0.5">{protocol.split(' ')[0]}</p>
+          </div>
+          <div className="bg-navy-800 rounded-lg p-2 text-center">
+            <Lock size={14} className="text-teal-400 mx-auto mb-1" />
+            <p className="text-xs text-gray-400">Encryption</p>
+            <p className="text-white text-xs font-medium mt-0.5">AES-256</p>
+          </div>
+          <div className="bg-navy-800 rounded-lg p-2 text-center">
+            <Clock size={14} className="text-accent-purple mx-auto mb-1" />
+            <p className="text-xs text-gray-400">Duration</p>
+            <p className="text-white text-xs font-mono font-medium mt-0.5">{isConnected ? elapsed : '—'}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Speed chart */}
+      <SpeedChart />
+
+      {/* Active protections */}
+      <div className="card p-4">
+        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Active Protections</h3>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { label: 'CleanWeb', on: cleanWeb, icon: '🛡️' },
+            { label: 'Kill Switch', on: killSwitch, icon: '🔒' },
+            { label: 'Rotating IP', on: rotatingIP, icon: '🔄' },
+          ].map(({ label, on, icon }) => (
+            <div key={label} className={clsx(
+              'rounded-xl p-3 text-center transition-all',
+              on ? 'bg-teal-500/10 border border-teal-500/20' : 'bg-navy-800 border border-transparent'
+            )}>
+              <span className="text-xl">{icon}</span>
+              <p className="text-xs text-gray-400 mt-1">{label}</p>
+              <p className={clsx('text-xs font-semibold mt-0.5', on ? 'text-teal-400' : 'text-gray-600')}>
+                {on ? 'ON' : 'OFF'}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Recent servers */}
+      <div className="card p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Recent Servers</h3>
+          <button onClick={() => navigate('/servers')} className="text-xs text-accent-blue hover:text-blue-300 transition-colors">
+            View all
+          </button>
+        </div>
+        <div className="space-y-1">
+          {useVPNStore.getState().recentServers.slice(0, 3).map(s => (
+            <ServerCard key={s.id} server={s} compact />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
