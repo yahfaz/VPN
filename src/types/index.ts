@@ -88,6 +88,7 @@ export interface VPNState {
   connect: () => void;
   disconnect: () => void;
   selectServer: (server: Server) => void;
+  connectToServerByIndex: (index: number) => void;
   setProtocol: (protocol: Protocol) => void;
   toggleKillSwitch: () => void;
   toggleCleanWeb: () => void;

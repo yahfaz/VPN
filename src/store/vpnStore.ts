@@ -207,6 +207,30 @@ export const useVPNStore = create<VPNState & {
       set({ selectedServer: server, recentServers: updated });
     },
 
+    connectToServerByIndex: (index: number) => {
+      const { vpngateServers, servers, backendOnline } = get();
+      const list = backendOnline && vpngateServers.length > 0 ? vpngateServers : servers;
+      const server = list[index];
+      if (!server) return;
+      const { recentServers } = get();
+      const updated = [server, ...recentServers.filter(s => s.id !== server.id)].slice(0, 5);
+      set({ selectedServer: server, recentServers: updated });
+      if (backendOnline) {
+        set({ status: 'connecting' });
+        wsClient.send('connect', server);
+      } else {
+        set({ status: 'connecting' });
+        setTimeout(() => {
+          set({
+            status: 'connected',
+            connectedServer: server,
+            connectedSince: new Date(),
+            vpnIP: `${Math.floor(Math.random() * 200 + 10)}.${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}`,
+          });
+        }, 2200);
+      }
+    },
+
     setProtocol: (protocol: Protocol) => set({ protocol }),
 
     toggleKillSwitch: () => set(s => ({ killSwitch: !s.killSwitch })),

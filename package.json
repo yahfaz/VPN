@@ -1,32 +1,104 @@
 {
-  "name": "vpn-app",
+  "name": "surfvpn",
   "version": "1.0.0",
+  "description": "SurfVPN — a free open-source VPN client powered by VPNGate",
+  "author": { "name": "SurfVPN", "email": "ya@nx3corp.com" },
+  "homepage": "https://github.com/yahfaz/VPN",
   "private": true,
+  "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
     "dev:server": "node server/index.js",
     "dev:all": "npx concurrently \"npm run dev:server\" \"npm run dev\"",
+    "dev:electron": "npx concurrently \"npm run dev:server\" \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "build": "tsc && vite build",
+    "electron:build": "npm run build && electron-builder --linux",
+    "electron:build:deb": "npm run build && electron-builder --linux deb",
+    "electron:build:appimage": "npm run build && electron-builder --linux AppImage",
     "preview": "vite preview"
   },
   "dependencies": {
+    "clsx": "^2.1.1",
+    "electron-is-dev": "^3.0.1",
+    "lucide-react": "^0.453.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.2",
-    "zustand": "^5.0.0",
-    "lucide-react": "^0.453.0",
-    "clsx": "^2.1.1"
+    "zustand": "^5.0.0"
   },
-  "type": "module",
   "devDependencies": {
-    "concurrently": "^9.1.0",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.2",
     "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.0",
+    "electron": "^42.3.3",
+    "electron-builder": "^26.15.2",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.14",
     "typescript": "^5.6.3",
-    "vite": "^5.4.9"
+    "vite": "^5.4.9",
+    "wait-on": "^9.0.10"
+  },
+  "build": {
+    "appId": "com.surfvpn.app",
+    "productName": "SurfVPN",
+    "copyright": "Copyright © 2026",
+    "directories": {
+      "buildResources": "assets",
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "server/**/*",
+      "node_modules/**/*",
+      "!server/node_modules/**/*",
+      "!node_modules/.cache/**/*",
+      "!**/*.map"
+    ],
+    "extraResources": [
+      {
+        "from": "server",
+        "to": "server",
+        "filter": [
+          "**/*",
+          "!node_modules/**"
+        ]
+      }
+    ],
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Network",
+      "description": "Free VPN client powered by OpenVPN and VPNGate",
+      "maintainer": "SurfVPN <ya@nx3corp.com>",
+      "vendor": "SurfVPN"
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.utilities"
+    },
+    "win": {
+      "target": "nsis",
+      "requestedExecutionLevel": "requireAdministrator"
+    },
+    "nsis": {
+      "installerIcon": "assets/icon.ico",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }
