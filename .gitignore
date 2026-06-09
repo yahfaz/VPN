@@ -7,3 +7,4 @@ dist/
 .DS_Store
 server/node_modules/
 /tmp/surfvpn*
+release/

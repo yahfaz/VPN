@@ -29,7 +29,12 @@ export function Dashboard() {
     realIP, vpnIP, protocol, updateSpeed,
     cleanWeb, killSwitch, rotatingIP,
     backendOnline, openvpnAvailable, connectionLog,
+    connectToServerByIndex, vpngateServers, servers,
   } = useVPNStore();
+
+  // Server 4 = index 3 (0-based) of the active server list
+  const allServers = backendOnline && vpngateServers.length > 0 ? vpngateServers : servers;
+  const server4 = allServers[3];
   const navigate = useNavigate();
   const elapsed = useTimer(connectedSince);
   const [showLog, setShowLog] = useState(false);
@@ -207,6 +212,62 @@ export function Dashboard() {
           ))}
         </div>
       </div>
+
+      {/* Quick Connect: Server 4 */}
+      {server4 && (
+        <div className={clsx(
+          'card p-4 border-2 transition-all',
+          connectedServer?.id === server4.id
+            ? 'border-teal-500/50 bg-teal-500/5'
+            : 'border-accent-blue/30 bg-accent-blue/5'
+        )}>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-accent-blue uppercase tracking-wider flex items-center gap-2">
+              ⚡ Quick Connect — Server 4
+            </h3>
+            {connectedServer?.id === server4.id && (
+              <span className="text-xs text-teal-400 bg-teal-500/15 border border-teal-500/30 px-2 py-0.5 rounded-full">
+                Active
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-3 p-3 bg-navy-800 rounded-xl">
+            <span className="text-3xl">{server4.flag}</span>
+            <div className="flex-1">
+              <p className="text-white font-semibold">{server4.city ?? server4.country}</p>
+              <p className="text-gray-400 text-sm">
+                {server4.country}
+                {server4.hostname && ` · ${server4.hostname}`}
+              </p>
+            </div>
+            <div className="text-right mr-2">
+              <p className={clsx('text-sm font-mono font-bold',
+                server4.ping < 50 ? 'text-teal-400' : server4.ping < 120 ? 'text-yellow-400' : 'text-red-400'
+              )}>
+                {server4.ping}ms
+              </p>
+              {server4.speedMbps !== undefined && (
+                <p className="text-xs text-gray-500">{server4.speedMbps} Mbps</p>
+              )}
+            </div>
+            <button
+              onClick={() => {
+                if (connectedServer?.id === server4.id) return;
+                connectToServerByIndex(3);
+              }}
+              disabled={status === 'connecting' || status === 'disconnecting' || connectedServer?.id === server4.id}
+              className={clsx(
+                'px-4 py-2 rounded-xl text-sm font-bold transition-all',
+                connectedServer?.id === server4.id
+                  ? 'bg-teal-500/20 text-teal-400 border border-teal-500/40 cursor-default'
+                  : 'bg-accent-blue text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed'
+              )}
+            >
+              {connectedServer?.id === server4.id ? 'Connected' : 'Connect'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Recent servers */}
       <div className="card p-4">
