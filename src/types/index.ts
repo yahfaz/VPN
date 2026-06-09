@@ -9,10 +9,14 @@ export interface Server {
   countryCode: string;
   flag: string;
   city?: string;
+  hostname?: string;
+  ip?: string;
+  config?: string;
   region: ServerRegion;
   serverCount: number;
   ping: number;
   load: number;
+  speedMbps?: number;
   type: ServerType;
   favorite: boolean;
 }
@@ -68,11 +72,17 @@ export interface VPNState {
 
   // Servers
   servers: Server[];
+  vpngateServers: Server[];
   multiHopPairs: MultiHopPair[];
   searchQuery: string;
   activeRegion: ServerRegion | 'All';
   serverTab: 'all' | 'favorites' | 'recent' | 'multihop';
   recentServers: Server[];
+
+  // Backend
+  backendOnline: boolean;
+  openvpnAvailable: boolean;
+  connectionLog: string[];
 
   // Actions
   connect: () => void;
