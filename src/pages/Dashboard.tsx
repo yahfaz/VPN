@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import clsx from 'clsx';
-import { Clock, Shield, Lock, ChevronRight } from 'lucide-react';
+import { Clock, Shield, Lock, ChevronRight, Terminal, Wifi, WifiOff } from 'lucide-react';
 import { useVPNStore } from '../store/vpnStore';
 import { ConnectionButton } from '../components/ConnectionButton';
 import { SpeedChart } from '../components/SpeedChart';
@@ -28,9 +28,11 @@ export function Dashboard() {
     status, selectedServer, connectedServer, connectedSince,
     realIP, vpnIP, protocol, updateSpeed,
     cleanWeb, killSwitch, rotatingIP,
+    backendOnline, openvpnAvailable, connectionLog,
   } = useVPNStore();
   const navigate = useNavigate();
   const elapsed = useTimer(connectedSince);
+  const [showLog, setShowLog] = useState(false);
 
   useEffect(() => {
     const id = setInterval(updateSpeed, 1000);
@@ -42,6 +44,42 @@ export function Dashboard() {
 
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-5">
+      {/* Backend status banner */}
+      <div className={clsx(
+        'flex items-center justify-between px-4 py-2.5 rounded-xl text-sm border',
+        backendOnline
+          ? 'bg-teal-500/10 border-teal-500/25 text-teal-400'
+          : 'bg-yellow-500/10 border-yellow-500/25 text-yellow-400'
+      )}>
+        <div className="flex items-center gap-2">
+          {backendOnline ? <Wifi size={14} /> : <WifiOff size={14} />}
+          <span className="font-medium">
+            {backendOnline
+              ? `Backend connected${openvpnAvailable ? ' · OpenVPN ready' : ' · OpenVPN not found'}`
+              : 'Backend offline — simulation mode (run: node server/index.js)'}
+          </span>
+        </div>
+        {connectionLog.length > 0 && (
+          <button
+            onClick={() => setShowLog(v => !v)}
+            className="flex items-center gap-1 text-xs opacity-70 hover:opacity-100"
+          >
+            <Terminal size={12} /> {showLog ? 'Hide' : 'Logs'}
+          </button>
+        )}
+      </div>
+
+      {/* Connection log */}
+      {showLog && connectionLog.length > 0 && (
+        <div className="card p-4 font-mono text-xs text-gray-400 max-h-40 overflow-y-auto space-y-0.5">
+          {connectionLog.slice(-50).map((line, i) => (
+            <div key={i} className={clsx(
+              line.startsWith('ERROR') ? 'text-red-400' : line.includes('Completed') ? 'text-teal-400' : ''
+            )}>{line}</div>
+          ))}
+        </div>
+      )}
+
       {/* Hero connection section */}
       <div className={clsx(
         'card p-8 text-center relative overflow-hidden',

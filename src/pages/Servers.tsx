@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import clsx from 'clsx';
-import { Search, X, Globe, Star, Clock, Shuffle } from 'lucide-react';
+import { Search, X, Globe, Star, Clock, Shuffle, RefreshCw } from 'lucide-react';
 import { useVPNStore } from '../store/vpnStore';
 import { ServerCard } from '../components/ServerCard';
 import { ServerRegion } from '../types';
@@ -15,25 +15,29 @@ const TABS = [
 
 export function Servers() {
   const {
-    servers, multiHopPairs, searchQuery, activeRegion, serverTab, recentServers,
-    selectedMultiHop,
+    servers, vpngateServers, multiHopPairs, searchQuery, activeRegion, serverTab, recentServers,
+    selectedMultiHop, backendOnline,
     setSearchQuery, setActiveRegion, setServerTab,
     selectMultiHop, connect, selectServer,
   } = useVPNStore();
 
+  // Use real VPNGate servers when backend is online, fall back to static list
+  const sourceServers = backendOnline && vpngateServers.length > 0 ? vpngateServers : servers;
+
   const filtered = useMemo(() => {
-    let list = servers;
+    let list = sourceServers;
     if (activeRegion !== 'All') list = list.filter(s => s.region === activeRegion);
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       list = list.filter(s =>
         s.country.toLowerCase().includes(q) ||
-        (s.city ?? '').toLowerCase().includes(q)
+        (s.city ?? '').toLowerCase().includes(q) ||
+        (s.hostname ?? '').toLowerCase().includes(q)
       );
     }
     if (serverTab === 'favorites') list = list.filter(s => s.favorite);
     return list;
-  }, [servers, activeRegion, searchQuery, serverTab]);
+  }, [sourceServers, activeRegion, searchQuery, serverTab]);
 
   const displayList = serverTab === 'recent' ? recentServers : filtered;
 
@@ -50,7 +54,24 @@ export function Servers() {
     <div className="flex-1 overflow-y-auto p-6 space-y-4">
       <div>
         <h1 className="text-2xl font-bold text-white">Server Locations</h1>
-        <p className="text-gray-400 text-sm mt-1">4,500+ servers across 100 countries</p>
+        <div className="flex items-center gap-2 mt-1">
+          <p className="text-gray-400 text-sm">
+            {backendOnline && vpngateServers.length > 0
+              ? `${vpngateServers.length} live servers from VPNGate`
+              : '4,500+ servers across 100 countries'}
+          </p>
+          {backendOnline && vpngateServers.length > 0 && (
+            <span className="flex items-center gap-1 text-xs text-teal-400 bg-teal-500/10 border border-teal-500/20 px-2 py-0.5 rounded-full">
+              <RefreshCw size={10} />
+              Live
+            </span>
+          )}
+          {!backendOnline && (
+            <span className="text-xs text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded-full">
+              Simulation mode
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Search */}

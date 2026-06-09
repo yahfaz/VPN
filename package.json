@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "vite",
+    "dev:server": "node server/index.js",
+    "dev:all": "npx concurrently \"npm run dev:server\" \"npm run dev\"",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },
@@ -15,7 +17,9 @@
     "lucide-react": "^0.453.0",
     "clsx": "^2.1.1"
   },
+  "type": "module",
   "devDependencies": {
+    "concurrently": "^9.1.0",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.2",
