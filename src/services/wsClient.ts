@@ -1,6 +1,8 @@
 type Listener = (data: unknown) => void;
 
-const WS_URL = `ws://${window.location.hostname}:3001`;
+// file:// (Electron packaged) has empty hostname — fall back to localhost
+const WS_HOST = window.location.hostname || 'localhost';
+const WS_URL = `ws://${WS_HOST}:3001`;
 const RECONNECT_DELAY = 3000;
 
 class VPNWebSocketClient {

@@ -60,8 +60,10 @@ export function Dashboard() {
           {backendOnline ? <Wifi size={14} /> : <WifiOff size={14} />}
           <span className="font-medium">
             {backendOnline
-              ? `Backend connected${openvpnAvailable ? ' · OpenVPN ready' : ' · OpenVPN not found'}`
-              : 'Backend offline — simulation mode (run: node server/index.js)'}
+              ? `Backend connected${openvpnAvailable ? ' · OpenVPN ready' : ' · OpenVPN not found (install it: sudo apt-get install openvpn)'}`
+              : (window as Window & { electronAPI?: { isElectron?: boolean } }).electronAPI?.isElectron
+                ? 'Backend starting… please wait a moment'
+                : 'Web preview — simulation only. Use the desktop app for real connections.'}
           </span>
         </div>
         {connectionLog.length > 0 && (
