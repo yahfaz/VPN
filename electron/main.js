@@ -4,7 +4,9 @@ const { app, BrowserWindow, ipcMain, shell, Menu, Tray, nativeImage } = require(
 const path = require('path');
 const { fork } = require('child_process');
 const http = require('http');
-const isDev = require('electron-is-dev');
+
+// Reliable packaged-vs-dev detection (never use electron-is-dev for this)
+const isPacked = app.isPackaged;
 
 let mainWindow = null;
 let tray = null;
@@ -12,63 +14,51 @@ let backendProcess = null;
 
 // ── Backend daemon ─────────────────────────────────────────────────────────
 function startBackend() {
-  // In packaged app, server lives in extraResources; in dev, use local path
-  const serverPath = isDev
-    ? path.join(__dirname, '../server/index.js')
-    : path.join(process.resourcesPath, 'server/index.js');
+  const serverPath = isPacked
+    ? path.join(process.resourcesPath, 'server', 'index.js')
+    : path.join(__dirname, '..', 'server', 'index.js');
 
   console.log('[electron] Starting backend:', serverPath);
 
-  // Use execArgv: [] to avoid passing --inspect flags to the child
   backendProcess = fork(serverPath, [], {
-    env: {
-      ...process.env,
-      ELECTRON: '1',
-      // Make sure node can resolve modules from the app root (not extraResources)
-      NODE_PATH: isDev
-        ? path.join(__dirname, '../node_modules')
-        : path.join(process.resourcesPath, '../app/node_modules'),
-    },
+    env: { ...process.env, ELECTRON: '1' },
     execArgv: [],
     silent: true,
   });
 
-  backendProcess.stdout?.on('data', d => console.log('[server]', d.toString().trim()));
-  backendProcess.stderr?.on('data', d => console.error('[server]', d.toString().trim()));
+  backendProcess.stdout?.on('data', d => process.stdout.write('[server] ' + d));
+  backendProcess.stderr?.on('data', d => process.stderr.write('[server] ' + d));
   backendProcess.on('exit', code => {
-    console.log('[electron] Backend exited with code', code);
+    console.log('[electron] Backend exited, code', code);
     backendProcess = null;
   });
 }
 
 function stopBackend() {
-  if (backendProcess) {
-    backendProcess.kill('SIGTERM');
-    backendProcess = null;
-  }
+  if (!backendProcess) return;
+  try {
+    require('child_process').execSync(`sudo kill ${backendProcess.pid} 2>/dev/null || kill ${backendProcess.pid} 2>/dev/null`);
+  } catch { backendProcess.kill('SIGTERM'); }
+  backendProcess = null;
 }
 
-// ── Wait for backend to be ready ───────────────────────────────────────────
-function waitForBackend(maxRetries = 20, delay = 300) {
-  return new Promise((resolve) => {
-    let tries = 0;
-    function attempt() {
-      const req = http.get('http://localhost:3001/api/health', (res) => {
-        if (res.statusCode === 200) { resolve(true); return; }
-        retry();
+// ── Wait for backend ────────────────────────────────────────────────────────
+function waitForBackend(retries = 30, delayMs = 300) {
+  return new Promise(resolve => {
+    let n = 0;
+    function try_() {
+      const req = http.get('http://127.0.0.1:3001/api/health', { timeout: 400 }, res => {
+        res.resume();
+        resolve(res.statusCode === 200);
       });
-      req.on('error', retry);
-      req.setTimeout(500, () => { req.destroy(); retry(); });
+      req.on('error', () => { if (++n < retries) setTimeout(try_, delayMs); else resolve(false); });
+      req.on('timeout', () => { req.destroy(); if (++n < retries) setTimeout(try_, delayMs); else resolve(false); });
     }
-    function retry() {
-      if (++tries >= maxRetries) { resolve(false); return; }
-      setTimeout(attempt, delay);
-    }
-    attempt();
+    try_();
   });
 }
 
-// ── Main window ────────────────────────────────────────────────────────────
+// ── Main window ─────────────────────────────────────────────────────────────
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1100,
@@ -82,37 +72,34 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      // Allow localhost WebSocket from file:// pages
+      webSecurity: false,
     },
   });
 
   Menu.setApplicationMenu(null);
 
-  const devURL = 'http://localhost:5173';
-  const prodFile = path.join(__dirname, '../dist/index.html');
-
-  if (isDev) {
-    mainWindow.loadURL(devURL);
-    mainWindow.webContents.openDevTools({ mode: 'detach' });
+  if (isPacked) {
+    // Production: load the bundled React app from disk
+    const indexPath = path.join(__dirname, '..', 'dist', 'index.html');
+    mainWindow.loadFile(indexPath);
   } else {
-    mainWindow.loadFile(prodFile);
+    // Development only: hot-reload from Vite dev server
+    mainWindow.loadURL('http://localhost:5173');
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
   }
 
   mainWindow.once('ready-to-show', () => mainWindow.show());
 
-  mainWindow.on('close', (e) => {
-    if (!app.isQuitting) {
-      e.preventDefault();
-      mainWindow.hide();
-    }
+  mainWindow.on('close', e => {
+    if (!app.isQuitting) { e.preventDefault(); mainWindow.hide(); }
   });
 }
 
-// ── System tray ────────────────────────────────────────────────────────────
+// ── System tray ──────────────────────────────────────────────────────────────
 function createTray() {
-  const icon = nativeImage.createFromDataURL(
-    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAA' +
-    'AAABJRU5ErkJggg=='
-  );
+  // Minimal 1×1 transparent PNG so tray works without an icon file
+  const icon = nativeImage.createEmpty();
   tray = new Tray(icon);
   tray.setToolTip('SurfVPN');
   const menu = Menu.buildFromTemplate([
@@ -124,18 +111,17 @@ function createTray() {
   tray.on('double-click', () => mainWindow?.show());
 }
 
-// ── IPC handlers ───────────────────────────────────────────────────────────
+// ── IPC ──────────────────────────────────────────────────────────────────────
 ipcMain.handle('app-version', () => app.getVersion());
 ipcMain.handle('open-external', (_e, url) => shell.openExternal(url));
 
-// ── App lifecycle ──────────────────────────────────────────────────────────
+// ── Lifecycle ────────────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
   startBackend();
   createTray();
 
-  // Wait for backend to be ready before opening the window (max ~6 seconds)
   const ready = await waitForBackend();
-  if (!ready) console.warn('[electron] Backend did not respond in time — opening anyway');
+  if (!ready) console.warn('[electron] Backend not ready — opening window anyway');
 
   createWindow();
 });
