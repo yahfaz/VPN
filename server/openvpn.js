@@ -63,14 +63,29 @@ async function connect(server, onLog) {
     // so openvpn can be called directly. On Linux/Mac, use sudo.
     let cmd, cmdArgs;
     if (isWin) {
-      // Find openvpn.exe on Windows
-      const candidates = [
-        'C:\\Program Files\\OpenVPN\\bin\\openvpn.exe',
-        'C:\\Program Files (x86)\\OpenVPN\\bin\\openvpn.exe',
-        'openvpn',
-      ];
-      cmd = candidates.find(p => { try { require('child_process').execSync(`"${p}" --version`, { stdio: 'ignore' }); return true; } catch { return false; } }) ?? 'openvpn';
-      cmdArgs = args;
+      // Prefer the bundled binary shipped with the Electron app
+      const resourcesPath = process.env.RESOURCES_PATH;
+      const bundledExe = resourcesPath ? path.join(resourcesPath, 'win', 'openvpn.exe') : null;
+
+      if (bundledExe && fs.existsSync(bundledExe)) {
+        cmd = bundledExe;
+        cmdArgs = [
+          ...args,
+          '--windows-driver', 'wintun',
+          '--wintun-dll-path', path.join(resourcesPath, 'win', 'wintun.dll'),
+        ];
+      } else {
+        // Fall back to system-installed OpenVPN
+        const candidates = [
+          'C:\\Program Files\\OpenVPN\\bin\\openvpn.exe',
+          'C:\\Program Files (x86)\\OpenVPN\\bin\\openvpn.exe',
+          'openvpn',
+        ];
+        cmd = candidates.find(p => {
+          try { require('child_process').execSync(`"${p}" --version`, { stdio: 'ignore' }); return true; } catch { return false; }
+        }) ?? 'openvpn';
+        cmdArgs = args;
+      }
     } else {
       try {
         require('child_process').execSync('which sudo', { stdio: 'ignore' });

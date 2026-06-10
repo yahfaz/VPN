@@ -21,7 +21,7 @@ function startBackend() {
   console.log('[electron] Starting backend:', serverPath);
 
   backendProcess = fork(serverPath, [], {
-    env: { ...process.env, ELECTRON: '1' },
+    env: { ...process.env, ELECTRON: '1', RESOURCES_PATH: process.resourcesPath },
     execArgv: [],
     silent: true,
   });

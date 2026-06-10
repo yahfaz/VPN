@@ -18,7 +18,8 @@
     "electron:build": "npm run build && electron-builder --linux",
     "electron:build:deb": "npm run build && electron-builder --linux deb",
     "electron:build:appimage": "npm run build && electron-builder --linux AppImage",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "prepare:win": "node scripts/prepare-win-openvpn.js"
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -71,6 +72,11 @@
           "**/*",
           "!node_modules/**"
         ]
+      },
+      {
+        "from": "resources/win",
+        "to": "win",
+        "filter": ["**/*"]
       }
     ],
     "linux": {
