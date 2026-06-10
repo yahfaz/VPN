@@ -147,6 +147,14 @@ export function Dashboard() {
         </div>
       </div>
 
+      {/* Servers loading banner */}
+      {backendOnline && vpngateServers.length === 0 && (
+        <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm border bg-yellow-500/10 border-yellow-500/25 text-yellow-400">
+          <div className="w-3 h-3 rounded-full border-2 border-yellow-400 border-t-transparent animate-spin" />
+          <span>Loading live VPN servers… please wait before connecting.</span>
+        </div>
+      )}
+
       {/* Selected server */}
       <div className="card p-4">
         <div className="flex items-center justify-between mb-3">

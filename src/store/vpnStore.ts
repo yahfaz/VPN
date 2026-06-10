@@ -105,18 +105,26 @@ export const useVPNStore = create<VPNState & {
   // Start connecting to backend
   wsClient.connect();
 
-  // Fetch VPNGate servers from backend
-  const fetchVPNGateServers = async () => {
+  // Fetch VPNGate servers from backend, with retry
+  const fetchVPNGateServers = async (attempt = 1) => {
     try {
       const res = await fetch(`http://${window.location.hostname || 'localhost'}:3001/api/servers`);
-      if (!res.ok) return;
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const { servers } = await res.json() as { servers: Server[] };
       if (servers?.length) {
-        set({ vpngateServers: servers });
+        // Auto-select first real server if current selection has no config
+        const cur = get().selectedServer;
+        const extra = !cur?.config ? { selectedServer: servers[0] } : {};
+        set({ vpngateServers: servers, ...extra });
+        return;
       }
-    } catch { /* backend not running */ }
+    } catch { /* backend not running or still warming up */ }
+    // Retry up to 6 times with increasing delay (backend pre-warms VPNGate cache)
+    if (attempt < 6) {
+      setTimeout(() => fetchVPNGateServers(attempt + 1), Math.min(attempt * 3000, 15000));
+    }
   };
-  setTimeout(fetchVPNGateServers, 1000); // slight delay to let WS init first
+  setTimeout(fetchVPNGateServers, 1500); // slight delay to let WS init first
 
   return {
     // ── Connection state ──

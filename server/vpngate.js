@@ -1,17 +1,27 @@
 'use strict';
 
 const http = require('http');
+const https = require('https');
 
-const VPNGATE_URL = 'http://www.vpngate.net/api/iphone/';
+// Try HTTPS mirror first (more reliable in some regions), fall back to HTTP
+const VPNGATE_URLS = [
+  'https://www.vpngate.net/api/iphone/',
+  'http://www.vpngate.net/api/iphone/',
+];
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 let cache = { servers: [], ts: 0 };
 
 function fetchRaw(url) {
   return new Promise((resolve, reject) => {
-    const req = http.get(url, { timeout: 15000 }, (res) => {
+    const mod = url.startsWith('https') ? https : http;
+    const req = mod.get(url, { timeout: 20000 }, (res) => {
       if (res.statusCode === 301 || res.statusCode === 302) {
         return fetchRaw(res.headers.location).then(resolve).catch(reject);
+      }
+      if (res.statusCode !== 200) {
+        res.resume();
+        return reject(new Error(`HTTP ${res.statusCode}`));
       }
       const chunks = [];
       res.on('data', c => chunks.push(c));
@@ -21,6 +31,23 @@ function fetchRaw(url) {
     req.on('error', reject);
     req.on('timeout', () => { req.destroy(); reject(new Error('Request timeout')); });
   });
+}
+
+async function fetchWithRetry() {
+  for (const url of VPNGATE_URLS) {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        console.log(`[vpngate] Fetching ${url} (attempt ${attempt})`);
+        const raw = await fetchRaw(url);
+        if (raw && raw.length > 500) return raw;
+        throw new Error('Response too short');
+      } catch (err) {
+        console.warn(`[vpngate] ${url} attempt ${attempt} failed: ${err.message}`);
+        if (attempt < 2) await new Promise(r => setTimeout(r, 2000));
+      }
+    }
+  }
+  throw new Error('All VPNGate endpoints failed');
 }
 
 function parseCSV(raw) {
@@ -94,8 +121,9 @@ async function getServers() {
   if (Date.now() - cache.ts < CACHE_TTL_MS && cache.servers.length > 0) {
     return cache.servers;
   }
-  const raw = await fetchRaw(VPNGATE_URL);
+  const raw = await fetchWithRetry();
   const servers = parseCSV(raw);
+  if (servers.length === 0) throw new Error('VPNGate returned no usable servers');
   cache = { servers, ts: Date.now() };
   return servers;
 }
