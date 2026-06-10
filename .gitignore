@@ -8,3 +8,5 @@ dist/
 server/node_modules/
 /tmp/surfvpn*
 release/
+.claude/
+resources/win/
