@@ -166,6 +166,12 @@ export const useVPNStore = create<VPNState & {
       if (!selectedServer) return;
 
       if (backendOnline) {
+        // Static fallback servers have no OpenVPN config — the backend can't connect to them.
+        if (!selectedServer.config) {
+          set(s => ({ connectionLog: [...s.connectionLog.slice(-99), 'ERROR: Live server list still loading — please try again in a moment.'] }));
+          return;
+        }
+        set({ status: 'connecting' });
         wsClient.send('connect', selectedServer);
       } else {
         // Simulation fallback when backend isn't running
@@ -216,6 +222,12 @@ export const useVPNStore = create<VPNState & {
       const updated = [server, ...recentServers.filter(s => s.id !== server.id)].slice(0, 5);
       set({ selectedServer: server, recentServers: updated });
       if (backendOnline) {
+        // Static fallback servers carry no OpenVPN config; attempting a real connection
+        // would just bounce off the backend with "No VPN config". Wait for the live list.
+        if (!server.config) {
+          set(s => ({ connectionLog: [...s.connectionLog.slice(-99), 'ERROR: Live server list still loading — please try again in a moment.'] }));
+          return;
+        }
         set({ status: 'connecting' });
         wsClient.send('connect', server);
       } else {
