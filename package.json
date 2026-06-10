@@ -102,7 +102,6 @@
       "requestedExecutionLevel": "requireAdministrator"
     },
     "nsis": {
-      "installerIcon": "assets/icon.ico",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
     }
