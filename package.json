@@ -15,9 +15,10 @@
     "dev:all": "npx concurrently \"npm run dev:server\" \"npm run dev\"",
     "dev:electron": "npx concurrently \"npm run dev:server\" \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "build": "tsc && vite build",
-    "electron:build": "npm run build && electron-builder --linux",
-    "electron:build:deb": "npm run build && electron-builder --linux deb",
-    "electron:build:appimage": "npm run build && electron-builder --linux AppImage",
+    "build:server": "node scripts/build-server.js",
+    "electron:build": "npm run build && npm run build:server && electron-builder --linux",
+    "electron:build:deb": "npm run build && npm run build:server && electron-builder --linux deb",
+    "electron:build:appimage": "npm run build && npm run build:server && electron-builder --linux AppImage",
     "preview": "vite preview",
     "prepare:win": "node scripts/prepare-win-openvpn.js"
   },
@@ -41,6 +42,7 @@
     "concurrently": "^9.1.0",
     "electron": "^42.3.3",
     "electron-builder": "^26.15.2",
+    "esbuild": "^0.25.5",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.14",
     "typescript": "^5.6.3",
@@ -58,20 +60,15 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
-      "server/**/*",
       "node_modules/**/*",
-      "!server/node_modules/**/*",
       "!node_modules/.cache/**/*",
       "!**/*.map"
     ],
     "extraResources": [
       {
-        "from": "server",
+        "from": "server-dist",
         "to": "server",
-        "filter": [
-          "**/*",
-          "!node_modules/**"
-        ]
+        "filter": ["**/*"]
       },
       {
         "from": "resources/win",
