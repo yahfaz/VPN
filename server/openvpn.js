@@ -26,10 +26,21 @@ function getPublicIP() {
 
 function patchConfig(raw) {
   let cfg = raw
-    // Remove directives that cause issues in daemon mode
+    // ── Deprecated directives removed in OpenVPN 2.5 / 2.6 ──────────────
+    // These cause an immediate "Options error" exit before any connection attempt.
+    .replace(/^comp-lzo.*$/gm, '')        // replaced by compress; handled via --allow-compression
+    .replace(/^compress\b.*$/gm, '')      // strip any existing compress line too
+    .replace(/^ns-cert-type.*$/gm, '')    // removed in 2.5, use remote-cert-tls
+    .replace(/^tls-remote.*$/gm, '')      // removed in 2.5, use verify-x509-name
+    .replace(/^keysize.*$/gm, '')         // removed in 2.5
+    .replace(/^cipher\s+BF-CBC.*$/gm, '') // Blowfish removed in 2.6
+    // ── Remove directives that break routing / Windows ────────────────────
     .replace(/^route-nopull.*$/gm, '')
     .replace(/^block-outside-dns.*$/gm, '')
-    .replace(/^dhcp-option.*$/gm, '');
+    .replace(/^dhcp-option.*$/gm, '')
+    // ── Remove any log-file directives (logs stream over WebSocket) ───────
+    .replace(/^log\b.*$/gm, '')
+    .replace(/^log-append.*$/gm, '');
 
   // Replace auth-user-pass with our creds file path.
   // OpenVPN config parsing treats backslashes as escape characters, so on Windows the path
@@ -62,7 +73,12 @@ async function connect(server, onLog) {
   fs.writeFileSync(authPath, 'vpn\nvpn\n', { mode: 0o600 });
 
   return new Promise((resolve, reject) => {
-    const args = ['--config', configPath, '--verb', '3', '--connect-retry-max', '3'];
+    const args = [
+      '--config', configPath,
+      '--verb', '3',
+      '--connect-retry-max', '3',
+      '--allow-compression', 'asym', // accept server-pushed compression, never compress client side
+    ];
     const isWin = process.platform === 'win32';
 
     // On Windows the app runs as Administrator (requestedExecutionLevel in package.json),
@@ -123,6 +139,16 @@ async function connect(server, onLog) {
       if (msg.includes('TLS Error')) {
         clearTimeout(timer);
         reject(new Error('TLS handshake failed — server may be offline'));
+        disconnect();
+      }
+      if (msg.includes('Options error') || msg.includes('Unrecognized option')) {
+        clearTimeout(timer);
+        reject(new Error('VPN config error — bad option in server config'));
+        disconnect();
+      }
+      if (msg.includes('Exiting due to fatal error')) {
+        clearTimeout(timer);
+        reject(new Error('OpenVPN fatal error — check logs for details'));
         disconnect();
       }
       if (msg.includes('SIGTERM') || msg.includes('process exiting')) {
