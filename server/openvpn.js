@@ -91,9 +91,11 @@ async function connect(server, onLog) {
 
       if (bundledExe && fs.existsSync(bundledExe)) {
         cmd = bundledExe;
-        cmdArgs = [...args, '--windows-driver', 'wintun'];
-        // wintun.dll must be loadable — set cwd to its directory so Windows DLL
-        // search finds it automatically (same folder as openvpn.exe).
+        // No --windows-driver flag: the NSIS installer runs openvpn-install.msi
+        // which installs tap-windows6 + the interactive service (runs as SYSTEM).
+        // OpenVPN auto-selects the available driver; tap-windows6 is reliable and
+        // works without SYSTEM privileges for the OpenVPN process itself.
+        cmdArgs = args;
         spawnOpts.cwd = path.dirname(bundledExe);
       } else {
         // Fall back to system-installed OpenVPN

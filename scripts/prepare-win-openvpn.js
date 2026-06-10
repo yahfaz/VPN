@@ -86,6 +86,12 @@ async function fetchOpenVPN() {
     }
   }
 
+  // Keep the MSI so the NSIS installer can run it silently to install
+  // tap-windows6 driver + OpenVPN interactive service on the end-user's PC.
+  const msiDest = path.join(OUT_DIR, 'openvpn-install.msi');
+  fs.copyFileSync(msiPath, msiDest);
+  console.log('    + openvpn-install.msi (bundled for NSIS installer)');
+
   // cleanup
   fs.rmSync(tmpDir, { recursive: true, force: true });
 }
