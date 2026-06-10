@@ -39,11 +39,9 @@ function patchConfig(raw) {
     cfg += `\nauth-user-pass ${authPath}`;
   }
 
-  // Ensure we don't reroute all traffic (so we don't lose connectivity to the app itself)
-  // Comment out redirect-gateway so only the app's own IP routing changes
-  cfg = cfg.replace(/^redirect-gateway/gm, '#redirect-gateway');
-
-  cfg += '\nscript-security 2\nlog-append /tmp/surfvpn.log\npull-filter ignore "redirect-gateway"\n';
+  // Route all traffic through VPN (redirect-gateway is intentionally kept active).
+  // localhost traffic is never affected by VPN routing, so the backend on :3001 stays reachable.
+  cfg += '\nscript-security 2\nlog-append /tmp/surfvpn.log\n';
   return cfg;
 }
 
