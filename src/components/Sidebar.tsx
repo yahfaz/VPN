@@ -54,15 +54,7 @@ export function Sidebar() {
       </nav>
 
       <div className="mt-auto px-3 pt-4 border-t border-navy-700">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-accent-purple/20 border border-accent-purple/40 flex items-center justify-center text-xs font-bold text-accent-purple">
-            Y
-          </div>
-          <div>
-            <p className="text-white text-xs font-medium">ya@nx3corp.com</p>
-            <p className="text-gray-500 text-xs">Premium Plan</p>
-          </div>
-        </div>
+        <p className="text-gray-600 text-xs text-center">SurfVPN · Free &amp; Open Source</p>
       </div>
     </aside>
   );

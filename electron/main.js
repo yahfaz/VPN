@@ -21,7 +21,7 @@ function startBackend() {
   console.log('[electron] Starting backend:', serverPath);
 
   backendProcess = fork(serverPath, [], {
-    env: { ...process.env, ELECTRON: '1' },
+    env: { ...process.env, ELECTRON: '1', RESOURCES_PATH: process.resourcesPath },
     execArgv: [],
     silent: true,
   });
@@ -37,7 +37,11 @@ function startBackend() {
 function stopBackend() {
   if (!backendProcess) return;
   try {
-    require('child_process').execSync(`sudo kill ${backendProcess.pid} 2>/dev/null || kill ${backendProcess.pid} 2>/dev/null`);
+    if (process.platform === 'win32') {
+      require('child_process').execSync(`taskkill /PID ${backendProcess.pid} /F /T`, { stdio: 'ignore' });
+    } else {
+      require('child_process').execSync(`sudo kill ${backendProcess.pid} 2>/dev/null || kill ${backendProcess.pid} 2>/dev/null`);
+    }
   } catch { backendProcess.kill('SIGTERM'); }
   backendProcess = null;
 }

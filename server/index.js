@@ -20,13 +20,31 @@ const httpServer = http.createServer(app);
 const wss = new WebSocket.Server({ server: httpServer });
 
 // ── OpenVPN availability check ─────────────────────────────────────────────
-let openvpnPath = null;
-try {
-  openvpnPath = execSync('which openvpn 2>/dev/null || echo ""').toString().trim();
-} catch { /* ignore */ }
+const isWindows = process.platform === 'win32';
+
+function findOpenVPN() {
+  // Check common Windows install paths first
+  if (isWindows) {
+    const candidates = [
+      'C:\\Program Files\\OpenVPN\\bin\\openvpn.exe',
+      'C:\\Program Files (x86)\\OpenVPN\\bin\\openvpn.exe',
+    ];
+    for (const p of candidates) {
+      try { require('fs').accessSync(p); return p; } catch { /* try next */ }
+    }
+    try { return execSync('where openvpn 2>nul').toString().trim().split('\n')[0]; } catch { return null; }
+  }
+  try { return execSync('which openvpn 2>/dev/null').toString().trim() || null; } catch { return null; }
+}
+
+const openvpnPath = findOpenVPN();
 const openvpnAvailable = Boolean(openvpnPath);
 
-console.log(`OpenVPN: ${openvpnAvailable ? openvpnPath : 'NOT FOUND — install with: apt-get install openvpn'}`);
+const installHint = isWindows
+  ? 'Download from https://openvpn.net/community-downloads/'
+  : 'sudo apt-get install openvpn';
+console.log(`OpenVPN: ${openvpnAvailable ? openvpnPath : `NOT FOUND — ${installHint}`}`);
+
 
 // ── REST endpoints ─────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => res.json({ ok: true, openvpnAvailable }));

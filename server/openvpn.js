@@ -57,14 +57,43 @@ async function connect(server, onLog) {
 
   return new Promise((resolve, reject) => {
     const args = ['--config', configPath, '--verb', '3', '--connect-retry-max', '3'];
-    // Try with sudo if available
-    let cmd = 'openvpn';
-    let cmdArgs = args;
-    try {
-      require('child_process').execSync('which sudo', { stdio: 'ignore' });
-      cmd = 'sudo';
-      cmdArgs = ['openvpn', ...args];
-    } catch { /* no sudo, try direct */ }
+    const isWin = process.platform === 'win32';
+
+    // On Windows the app runs as Administrator (requestedExecutionLevel in package.json),
+    // so openvpn can be called directly. On Linux/Mac, use sudo.
+    let cmd, cmdArgs;
+    if (isWin) {
+      // Prefer the bundled binary shipped with the Electron app
+      const resourcesPath = process.env.RESOURCES_PATH;
+      const bundledExe = resourcesPath ? path.join(resourcesPath, 'win', 'openvpn.exe') : null;
+
+      if (bundledExe && fs.existsSync(bundledExe)) {
+        cmd = bundledExe;
+        cmdArgs = [
+          ...args,
+          '--windows-driver', 'wintun',
+          '--wintun-dll-path', path.join(resourcesPath, 'win', 'wintun.dll'),
+        ];
+      } else {
+        // Fall back to system-installed OpenVPN
+        const candidates = [
+          'C:\\Program Files\\OpenVPN\\bin\\openvpn.exe',
+          'C:\\Program Files (x86)\\OpenVPN\\bin\\openvpn.exe',
+          'openvpn',
+        ];
+        cmd = candidates.find(p => {
+          try { require('child_process').execSync(`"${p}" --version`, { stdio: 'ignore' }); return true; } catch { return false; }
+        }) ?? 'openvpn';
+        cmdArgs = args;
+      }
+    } else {
+      try {
+        require('child_process').execSync('which sudo', { stdio: 'ignore' });
+        cmd = 'sudo'; cmdArgs = ['openvpn', ...args];
+      } catch {
+        cmd = 'openvpn'; cmdArgs = args;
+      }
+    }
 
     proc = spawn(cmd, cmdArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
 
@@ -118,8 +147,11 @@ function disconnect() {
     if (!proc) { resolve(); return; }
     proc.on('exit', () => resolve());
     try {
-      // sudo kill needs special handling
-      require('child_process').execSync(`sudo kill ${proc.pid} 2>/dev/null || kill ${proc.pid} 2>/dev/null`);
+      if (process.platform === 'win32') {
+        require('child_process').execSync(`taskkill /PID ${proc.pid} /F /T`, { stdio: 'ignore' });
+      } else {
+        require('child_process').execSync(`sudo kill ${proc.pid} 2>/dev/null || kill ${proc.pid} 2>/dev/null`);
+      }
     } catch { proc.kill('SIGTERM'); }
     setTimeout(resolve, 3000); // fallback
   });
