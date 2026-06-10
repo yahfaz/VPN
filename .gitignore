@@ -10,3 +10,4 @@ server/node_modules/
 release/
 .claude/
 resources/win/
+server-dist/

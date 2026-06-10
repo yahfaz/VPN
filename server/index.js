@@ -32,9 +32,17 @@ function findOpenVPN() {
     for (const p of candidates) {
       try { require('fs').accessSync(p); return p; } catch { /* try next */ }
     }
-    try { return execSync('where openvpn 2>nul').toString().trim().split('\n')[0]; } catch { return null; }
+    // `2>nul` is a cmd.exe redirection; execSync does not run through cmd.exe by default,
+    // so it would be passed to `where` as a literal argument. Suppress stderr via stdio instead.
+    try {
+      const out = execSync('where openvpn', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+      return out.split(/\r?\n/)[0] || null;
+    } catch { return null; }
   }
-  try { return execSync('which openvpn 2>/dev/null').toString().trim() || null; } catch { return null; }
+  try {
+    const out = execSync('which openvpn', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+    return out || null;
+  } catch { return null; }
 }
 
 const openvpnPath = findOpenVPN();
@@ -135,7 +143,7 @@ wss.on('connection', async (ws) => {
     if (msg.type === 'connect') {
       const server = msg.data;
       if (!openvpnAvailable) {
-        send(ws, 'error', 'OpenVPN not found. Run: sudo apt-get install openvpn');
+        send(ws, 'error', `OpenVPN not found. ${installHint}`);
         return;
       }
       if (!server?.config) {

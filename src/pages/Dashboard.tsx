@@ -47,6 +47,16 @@ export function Dashboard() {
   const isConnected = status === 'connected';
   const displayServer = connectedServer ?? selectedServer;
 
+  // Platform-aware OpenVPN install hint (the backend bundles openvpn.exe on Windows,
+  // so this only ever shows for Linux/Mac users running the unbundled dev backend).
+  const isWindows = /win/i.test(navigator.userAgent);
+  const isMac = /mac/i.test(navigator.userAgent);
+  const openvpnHint = isWindows
+    ? 'install OpenVPN from openvpn.net'
+    : isMac
+      ? 'install it: brew install openvpn'
+      : 'install it: sudo apt-get install openvpn';
+
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-5">
       {/* Backend status banner */}
@@ -60,7 +70,7 @@ export function Dashboard() {
           {backendOnline ? <Wifi size={14} /> : <WifiOff size={14} />}
           <span className="font-medium">
             {backendOnline
-              ? `Backend connected${openvpnAvailable ? ' · OpenVPN ready' : ' · OpenVPN not found (install it: sudo apt-get install openvpn)'}`
+              ? `Backend connected${openvpnAvailable ? ' · OpenVPN ready' : ` · OpenVPN not found (${openvpnHint})`}`
               : (window as Window & { electronAPI?: { isElectron?: boolean } }).electronAPI?.isElectron
                 ? 'Backend starting… please wait a moment'
                 : 'Web preview — simulation only. Use the desktop app for real connections.'}

@@ -31,8 +31,10 @@ function patchConfig(raw) {
     .replace(/^block-outside-dns.*$/gm, '')
     .replace(/^dhcp-option.*$/gm, '');
 
-  // Replace auth-user-pass with our creds file path
-  const authPath = path.join(os.tmpdir(), 'surfvpn-auth.txt');
+  // Replace auth-user-pass with our creds file path.
+  // OpenVPN config parsing treats backslashes as escape characters, so on Windows the path
+  // must use forward slashes (OpenVPN accepts forward slashes on every platform).
+  const authPath = path.join(os.tmpdir(), 'surfvpn-auth.txt').replace(/\\/g, '/');
   if (/^auth-user-pass\s*$/m.test(cfg)) {
     cfg = cfg.replace(/^auth-user-pass\s*$/m, `auth-user-pass ${authPath}`);
   } else if (!cfg.includes('auth-user-pass')) {
@@ -41,7 +43,11 @@ function patchConfig(raw) {
 
   // Route all traffic through VPN (redirect-gateway is intentionally kept active).
   // localhost traffic is never affected by VPN routing, so the backend on :3001 stays reachable.
-  cfg += '\nscript-security 2\nlog-append /tmp/surfvpn.log\n';
+  //
+  // We intentionally do NOT add `script-security 2` (no client-side scripts are used, so
+  // raising the script security level would only widen the attack surface), and we do NOT add
+  // `log-append` (the old hardcoded /tmp/surfvpn.log path does not exist on Windows; logs are
+  // already streamed live to the UI over the WebSocket).
   return cfg;
 }
 
@@ -76,14 +82,12 @@ async function connect(server, onLog) {
         ];
       } else {
         // Fall back to system-installed OpenVPN
+        // Use a cheap existence check rather than launching openvpn just to probe for it.
         const candidates = [
           'C:\\Program Files\\OpenVPN\\bin\\openvpn.exe',
           'C:\\Program Files (x86)\\OpenVPN\\bin\\openvpn.exe',
-          'openvpn',
         ];
-        cmd = candidates.find(p => {
-          try { require('child_process').execSync(`"${p}" --version`, { stdio: 'ignore' }); return true; } catch { return false; }
-        }) ?? 'openvpn';
+        cmd = candidates.find(p => fs.existsSync(p)) ?? 'openvpn';
         cmdArgs = args;
       }
     } else {
@@ -97,10 +101,11 @@ async function connect(server, onLog) {
 
     proc = spawn(cmd, cmdArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
 
+    // VPNGate servers are free/public and can be slow to negotiate, so allow up to 60s.
     const timer = setTimeout(() => {
-      reject(new Error('Connection timed out after 30s'));
+      reject(new Error('Connection timed out after 60s'));
       disconnect();
-    }, 30000);
+    }, 60000);
 
     function handleOutput(data) {
       const msg = data.toString();
