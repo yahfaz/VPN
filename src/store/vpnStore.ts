@@ -108,7 +108,7 @@ export const useVPNStore = create<VPNState & {
   // Fetch VPNGate servers from backend
   const fetchVPNGateServers = async () => {
     try {
-      const res = await fetch(`http://${window.location.hostname}:3001/api/servers`);
+      const res = await fetch(`http://${window.location.hostname || 'localhost'}:3001/api/servers`);
       if (!res.ok) return;
       const { servers } = await res.json() as { servers: Server[] };
       if (servers?.length) {
