@@ -83,7 +83,7 @@ async function connect(server, onLog) {
 
     // On Windows the app runs as Administrator (requestedExecutionLevel in package.json),
     // so openvpn can be called directly. On Linux/Mac, use sudo.
-    let cmd, cmdArgs;
+    let cmd, cmdArgs, spawnOpts = { stdio: ['ignore', 'pipe', 'pipe'] };
     if (isWin) {
       // Prefer the bundled binary shipped with the Electron app
       const resourcesPath = process.env.RESOURCES_PATH;
@@ -91,14 +91,12 @@ async function connect(server, onLog) {
 
       if (bundledExe && fs.existsSync(bundledExe)) {
         cmd = bundledExe;
-        cmdArgs = [
-          ...args,
-          '--windows-driver', 'wintun',
-          '--wintun-dll-path', path.join(resourcesPath, 'win', 'wintun.dll'),
-        ];
+        cmdArgs = [...args, '--windows-driver', 'wintun'];
+        // wintun.dll must be loadable — set cwd to its directory so Windows DLL
+        // search finds it automatically (same folder as openvpn.exe).
+        spawnOpts.cwd = path.dirname(bundledExe);
       } else {
         // Fall back to system-installed OpenVPN
-        // Use a cheap existence check rather than launching openvpn just to probe for it.
         const candidates = [
           'C:\\Program Files\\OpenVPN\\bin\\openvpn.exe',
           'C:\\Program Files (x86)\\OpenVPN\\bin\\openvpn.exe',
@@ -115,7 +113,7 @@ async function connect(server, onLog) {
       }
     }
 
-    proc = spawn(cmd, cmdArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
+    proc = spawn(cmd, cmdArgs, spawnOpts);
 
     // VPNGate servers are free/public and can be slow to negotiate, so allow up to 60s.
     const timer = setTimeout(() => {
