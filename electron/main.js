@@ -37,7 +37,11 @@ function startBackend() {
 function stopBackend() {
   if (!backendProcess) return;
   try {
-    require('child_process').execSync(`sudo kill ${backendProcess.pid} 2>/dev/null || kill ${backendProcess.pid} 2>/dev/null`);
+    if (process.platform === 'win32') {
+      require('child_process').execSync(`taskkill /PID ${backendProcess.pid} /F /T`, { stdio: 'ignore' });
+    } else {
+      require('child_process').execSync(`sudo kill ${backendProcess.pid} 2>/dev/null || kill ${backendProcess.pid} 2>/dev/null`);
+    }
   } catch { backendProcess.kill('SIGTERM'); }
   backendProcess = null;
 }
