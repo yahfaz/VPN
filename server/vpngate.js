@@ -72,6 +72,15 @@ function parseCSV(raw) {
         return null;
       }
 
+      // Detect protocol + port from the embedded config. Servers on UDP or
+      // port 443 bypass most firewalls/ISP throttling and are far more likely
+      // to actually connect, so we use this to bias the sort order.
+      const protoMatch = config.match(/^proto\s+(\w+)/m);
+      const remoteMatch = config.match(/^remote\s+\S+\s+(\d+)/m);
+      const proto = protoMatch ? protoMatch[1].toLowerCase().replace(/[46]$/, '') : 'udp';
+      const port = remoteMatch ? parseInt(remoteMatch[1]) : 0;
+      const firewallFriendly = proto === 'udp' || port === 443 || port === 1194;
+
       const speedBps = parseInt(cols[4]) || 0;
       return {
         id: `vg-${cols[1].replace(/\./g, '-')}`,
@@ -87,6 +96,9 @@ function parseCSV(raw) {
         logType: cols[11] || '',
         operator: cols[12] || '',
         config,
+        proto,
+        port,
+        firewallFriendly,
         serverCount: 1,
         load: Math.min(Math.round((parseInt(cols[7]) || 0) * 5), 95),
         type: 'standard',
@@ -95,7 +107,11 @@ function parseCSV(raw) {
       };
     })
     .filter(Boolean)
-    .sort((a, b) => b.score - a.score);
+    // Firewall-friendly servers first, then by VPNGate score
+    .sort((a, b) => {
+      if (a.firewallFriendly !== b.firewallFriendly) return a.firewallFriendly ? -1 : 1;
+      return b.score - a.score;
+    });
 }
 
 function countryFlag(code) {
