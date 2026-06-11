@@ -1,4 +1,4 @@
-export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'disconnecting';
+export type ConnectionStatus = 'disconnected' | 'connecting' | 'verifying' | 'connected' | 'disconnecting';
 export type Protocol = 'WireGuard' | 'OpenVPN UDP' | 'OpenVPN TCP' | 'IKEv2/IPSec';
 export type ServerRegion = 'Europe' | 'Americas' | 'Asia Pacific' | 'Middle East & Africa';
 export type ServerType = 'standard' | 'static' | 'p2p' | 'multihop';
@@ -54,6 +54,8 @@ export interface VPNState {
   connectedSince: Date | null;
   realIP: string;
   vpnIP: string;
+  verifiedCountry: string;
+  verifiedCountryCode: string;
   protocol: Protocol;
   downloadSpeed: number;
   uploadSpeed: number;

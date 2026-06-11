@@ -6,7 +6,9 @@ const WebSocket = require('ws');
 const cors = require('cors');
 const si = require('systeminformation');
 const { getServers } = require('./vpngate');
-const { connect, disconnect, isRunning, setExitCallback, getPublicIP } = require('./openvpn');
+const { disconnect, isRunning, setExitCallback, getPublicIP } = require('./openvpn');
+const { connectUSA, ONLY_USA } = require('./vpn/openvpnManager');
+const { getUSAServers } = require('./vpn/providers/vpngateProvider');
 const { execSync } = require('child_process');
 
 const PORT = 3001;
@@ -42,8 +44,6 @@ function findOpenVPN() {
     for (const p of candidates) {
       try { fs.accessSync(p); return p; } catch { /* try next */ }
     }
-    // `2>nul` is a cmd.exe redirection; execSync does not run through cmd.exe by default,
-    // so it would be passed to `where` as a literal argument. Suppress stderr via stdio instead.
     try {
       const out = execSync('where openvpn', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
       return out.split(/\r?\n/)[0] || null;
@@ -62,19 +62,21 @@ const installHint = isWindows
   ? 'Download from https://openvpn.net/community-downloads/'
   : 'sudo apt-get install openvpn';
 console.log(`OpenVPN: ${openvpnAvailable ? openvpnPath : `NOT FOUND — ${installHint}`}`);
+console.log(`USA-only mode: ${ONLY_USA}`);
 
 
 // ── REST endpoints ─────────────────────────────────────────────────────────
-app.get('/api/health', (_req, res) => res.json({ ok: true, openvpnAvailable }));
+app.get('/api/health', (_req, res) => res.json({ ok: true, openvpnAvailable, onlyUSA: ONLY_USA }));
 
 app.get('/api/ip', async (_req, res) => {
   const ip = await getPublicIP();
   res.json({ ip: ip ?? 'unknown' });
 });
 
+// /api/servers returns USA-only servers when ONLY_USA=true
 app.get('/api/servers', async (_req, res) => {
   try {
-    const servers = await getServers();
+    const servers = ONLY_USA ? await getUSAServers() : await getServers();
     res.json({ servers, count: servers.length, cached: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -135,6 +137,7 @@ wss.on('connection', async (ws) => {
     openvpnAvailable,
     realIP: realIP ?? 'unknown',
     connected: isRunning(),
+    onlyUSA: ONLY_USA,
   });
 
   // Handle unexpected VPN exit
@@ -145,9 +148,7 @@ wss.on('connection', async (ws) => {
     });
   });
 
-  // Connection state for this client: prevents parallel retry loops when the
-  // user double-clicks connect, and lets a disconnect request abort a retry
-  // loop that is still walking the server list.
+  // Connection state: prevents parallel retry loops and lets disconnect abort an in-flight attempt.
   let connectBusy = false;
   let connectAborted = false;
 
@@ -173,53 +174,14 @@ wss.on('connection', async (ws) => {
       connectBusy = true;
       connectAborted = false;
 
-      send(ws, 'status', { status: 'connecting', server });
-
-      // Try up to 5 servers: the requested one first, then next-best by score
-      const MAX_ATTEMPTS = 5;
-      let lastErr = null;
-      let tried = 0;
-
       try {
-        const allServers = await getServers().catch(() => []);
-        const startIdx = allServers.findIndex(s => s.id === server.id);
-        // Build candidate list: requested server first, then subsequent by score
-        const candidates = startIdx >= 0
-          ? [allServers[startIdx], ...allServers.slice(startIdx + 1)]
-          : [server];
-
-        for (const candidate of candidates) {
-          if (connectAborted || tried >= MAX_ATTEMPTS) break;
-          if (!candidate?.config) continue;
-          tried++;
-
-          if (tried > 1) {
-            send(ws, 'log', `Trying next server: ${candidate.country} (${candidate.ip}) [attempt ${tried}/${MAX_ATTEMPTS}]`);
-            send(ws, 'status', { status: 'connecting', server: candidate });
-          }
-
-          try {
-            const result = await connect(candidate, (log) => send(ws, 'log', log));
-            if (connectAborted) { await disconnect(); break; }
-            const vpnIP = result.ip ?? candidate.ip;
-            send(ws, 'status', { status: 'connected', server: candidate, vpnIP });
-            startSpeedMonitor();
-            lastErr = null;
-            break;
-          } catch (err) {
-            lastErr = err;
-            console.error(`[openvpn] attempt ${tried} failed (${candidate.ip}): ${err.message}`);
-            send(ws, 'log', `Failed: ${err.message}`);
-          }
-        }
-
-        if (connectAborted) {
-          const ip = await getPublicIP();
-          send(ws, 'status', { status: 'disconnected', realIP: ip ?? 'unknown' });
-        } else if (lastErr) {
-          send(ws, 'error', `All ${tried} servers failed. Last error: ${lastErr.message}`);
-          const ip = await getPublicIP();
-          send(ws, 'status', { status: 'disconnected', realIP: ip ?? 'unknown' });
+        const connected = await connectUSA(
+          server,
+          (type, data) => send(ws, type, data),
+          () => connectAborted,
+        );
+        if (connected && !connectAborted) {
+          startSpeedMonitor();
         }
       } catch (outerErr) {
         send(ws, 'error', outerErr.message);
@@ -233,7 +195,7 @@ wss.on('connection', async (ws) => {
 
     // ── disconnect ──
     if (msg.type === 'disconnect') {
-      connectAborted = true; // stop any in-flight retry loop
+      connectAborted = true; // abort any in-flight retry loop
       stopSpeedMonitor();
       send(ws, 'status', { status: 'disconnecting' });
       await disconnect();
@@ -255,6 +217,7 @@ httpServer.listen(PORT, () => {
   console.log('Endpoints: GET /api/ip  GET /api/servers  GET /api/health');
   console.log('WebSocket: ws://localhost:3001\n');
 
-  // Pre-warm VPNGate server cache in background
-  getServers().then(s => console.log(`[vpngate] Cached ${s.length} servers`)).catch(console.error);
+  // Pre-warm the server cache in background
+  const prewarm = ONLY_USA ? getUSAServers : getServers;
+  prewarm().then(s => console.log(`[vpngate] Cached ${s.length} servers (USA-only: ${ONLY_USA})`)).catch(console.error);
 });
