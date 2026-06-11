@@ -76,7 +76,7 @@ async function connect(server, onLog) {
     const args = [
       '--config', configPath,
       '--verb', '3',
-      '--connect-retry-max', '3',
+      '--connect-retry-max', '1', // fail fast; caller retries with next server
       '--allow-compression', 'asym', // accept server-pushed compression, never compress client side
     ];
     const isWin = process.platform === 'win32';
