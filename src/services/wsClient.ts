@@ -9,7 +9,7 @@ class VPNWebSocketClient {
   private ws: WebSocket | null = null;
   private listeners = new Map<string, Listener[]>();
   private queue: string[] = [];
-  private reconnecting = false;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   connect() {
     if (this.ws?.readyState === WebSocket.OPEN) return;
@@ -17,7 +17,6 @@ class VPNWebSocketClient {
       this.ws = new WebSocket(WS_URL);
 
       this.ws.onopen = () => {
-        this.reconnecting = false;
         // Flush queued messages
         this.queue.forEach(m => this.ws?.send(m));
         this.queue = [];
@@ -33,16 +32,24 @@ class VPNWebSocketClient {
 
       this.ws.onclose = () => {
         this.emit('_disconnected', null);
-        if (!this.reconnecting) {
-          this.reconnecting = true;
-          setTimeout(() => this.connect(), RECONNECT_DELAY);
-        }
+        this.scheduleReconnect();
       };
 
       this.ws.onerror = () => { /* onclose fires after */ };
     } catch {
-      setTimeout(() => this.connect(), RECONNECT_DELAY);
+      this.scheduleReconnect();
     }
+  }
+
+  // Retries forever — the backend may take a while to start, and giving up
+  // leaves the app permanently in "Backend starting…". The timer guard just
+  // prevents stacking multiple pending reconnects.
+  private scheduleReconnect() {
+    if (this.reconnectTimer) return;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.connect();
+    }, RECONNECT_DELAY);
   }
 
   send(type: string, data?: unknown) {

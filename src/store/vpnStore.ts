@@ -134,7 +134,7 @@ export const useVPNStore = create<VPNState & {
     connectedSince: null,
     realIP: '...',
     vpnIP: '',
-    protocol: 'WireGuard',
+    protocol: 'OpenVPN UDP', // the engine actually in use — keep the UI honest
     downloadSpeed: 0,
     uploadSpeed: 0,
     totalDownload: 0,
@@ -170,8 +170,11 @@ export const useVPNStore = create<VPNState & {
 
     // ── Actions ──
     connect: () => {
-      const { selectedServer, backendOnline } = get();
+      const { selectedServer, backendOnline, status } = get();
       if (!selectedServer) return;
+      // Ignore clicks while a connection attempt is already in flight —
+      // otherwise the backend ends up with parallel retry loops.
+      if (status === 'connecting' || status === 'disconnecting') return;
 
       if (backendOnline) {
         // Static fallback servers have no OpenVPN config — the backend can't connect to them.
@@ -222,7 +225,8 @@ export const useVPNStore = create<VPNState & {
     },
 
     connectToServerByIndex: (index: number) => {
-      const { vpngateServers, servers, backendOnline } = get();
+      const { vpngateServers, servers, backendOnline, status } = get();
+      if (status === 'connecting' || status === 'disconnecting') return;
       const list = backendOnline && vpngateServers.length > 0 ? vpngateServers : servers;
       const server = list[index];
       if (!server) return;

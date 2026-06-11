@@ -86,8 +86,8 @@ export function Dashboard() {
         )}
       </div>
 
-      {/* Connection log */}
-      {showLog && connectionLog.length > 0 && (
+      {/* Connection log — auto-shown while connecting so retry progress is visible */}
+      {(showLog || status === 'connecting') && connectionLog.length > 0 && (
         <div className="card p-4 font-mono text-xs text-gray-400 max-h-40 overflow-y-auto space-y-0.5">
           {connectionLog.slice(-50).map((line, i) => (
             <div key={i} className={clsx(
@@ -197,7 +197,7 @@ export function Dashboard() {
           <div className="bg-navy-800 rounded-lg p-2 text-center">
             <Lock size={14} className="text-teal-400 mx-auto mb-1" />
             <p className="text-xs text-gray-400">Encryption</p>
-            <p className="text-white text-xs font-medium mt-0.5">AES-256</p>
+            <p className="text-white text-xs font-medium mt-0.5">AES</p>
           </div>
           <div className="bg-navy-800 rounded-lg p-2 text-center">
             <Clock size={14} className="text-accent-purple mx-auto mb-1" />
@@ -210,9 +210,9 @@ export function Dashboard() {
       {/* Speed chart */}
       <SpeedChart />
 
-      {/* Active protections */}
+      {/* Feature previews (toggles don't affect the tunnel yet) */}
       <div className="card p-4">
-        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Active Protections</h3>
+        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Feature Previews · Coming Soon</h3>
         <div className="grid grid-cols-3 gap-2">
           {[
             { label: 'CleanWeb', on: cleanWeb, icon: '🛡️' },

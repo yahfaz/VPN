@@ -3,11 +3,10 @@ import { useVPNStore } from '../store/vpnStore';
 import { Protocol } from '../types';
 import { CheckCircle } from 'lucide-react';
 
-const PROTOCOLS: { id: Protocol; label: string; desc: string; badge?: string }[] = [
-  { id: 'WireGuard', label: 'WireGuard', desc: 'Fastest speeds. Modern cryptography. Recommended for most users.', badge: 'Recommended' },
-  { id: 'OpenVPN UDP', label: 'OpenVPN UDP', desc: 'Reliable and widely compatible. Best balance of speed and security.' },
-  { id: 'OpenVPN TCP', label: 'OpenVPN TCP', desc: 'More reliable on unstable networks. Slightly slower than UDP.' },
-  { id: 'IKEv2/IPSec', label: 'IKEv2/IPSec', desc: 'Fast reconnection. Great for mobile devices switching networks.' },
+const PROTOCOLS: { id: Protocol; label: string; desc: string; badge?: string; disabled?: boolean }[] = [
+  { id: 'OpenVPN UDP', label: 'OpenVPN (Auto)', desc: 'UDP or TCP is chosen automatically per server. Powered by OpenVPN 2.6.', badge: 'Active' },
+  { id: 'WireGuard', label: 'WireGuard', desc: 'Not yet supported — VPNGate servers use OpenVPN.', disabled: true, badge: 'Coming soon' },
+  { id: 'IKEv2/IPSec', label: 'IKEv2/IPSec', desc: 'Not yet supported.', disabled: true, badge: 'Coming soon' },
 ];
 
 const DNS_OPTIONS = [
@@ -42,12 +41,15 @@ export function Settings() {
           {PROTOCOLS.map(p => (
             <button
               key={p.id}
-              onClick={() => setProtocol(p.id)}
+              onClick={() => !p.disabled && setProtocol(p.id)}
+              disabled={p.disabled}
               className={clsx(
                 'w-full flex items-start gap-3 p-3 rounded-xl text-left transition-all',
+                p.disabled && 'opacity-50 cursor-not-allowed',
                 protocol === p.id
                   ? 'bg-accent-blue/15 border border-accent-blue/35'
-                  : 'bg-navy-800 border border-transparent hover:bg-navy-700'
+                  : 'bg-navy-800 border border-transparent',
+                !p.disabled && protocol !== p.id && 'hover:bg-navy-700'
               )}
             >
               <div className={clsx(
@@ -75,7 +77,9 @@ export function Settings() {
       {/* DNS */}
       <section className="card p-5">
         <h2 className="text-sm font-semibold text-white mb-1">DNS Settings</h2>
-        <p className="text-xs text-gray-500 mb-4">Control which DNS servers resolve your queries</p>
+        <p className="text-xs text-gray-500 mb-4">
+          Preview — while connected, DNS is currently provided by the VPN server
+        </p>
         <div className="space-y-2">
           {DNS_OPTIONS.map(d => (
             <button
@@ -172,10 +176,10 @@ export function Settings() {
         <h2 className="text-sm font-semibold text-white mb-3">About</h2>
         <div className="space-y-2">
           {[
-            ['Version', '3.2.1'],
-            ['Encryption', 'AES-256-GCM'],
-            ['Build', '2026.06.08'],
-            ['License', 'Premium'],
+            ['Version', '1.0.0'],
+            ['VPN Engine', 'OpenVPN 2.6'],
+            ['Server Network', 'VPNGate (free, volunteer-run)'],
+            ['License', 'Free & Open Source'],
           ].map(([k, v]) => (
             <div key={k} className="flex justify-between text-sm">
               <span className="text-gray-400">{k}</span>

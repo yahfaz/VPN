@@ -135,6 +135,12 @@ wss.on('connection', async (ws) => {
     });
   });
 
+  // Connection state for this client: prevents parallel retry loops when the
+  // user double-clicks connect, and lets a disconnect request abort a retry
+  // loop that is still walking the server list.
+  let connectBusy = false;
+  let connectAborted = false;
+
   ws.on('message', async (raw) => {
     let msg;
     try { msg = JSON.parse(raw.toString()); } catch { return; }
@@ -150,6 +156,12 @@ wss.on('connection', async (ws) => {
         send(ws, 'error', 'No VPN config for selected server');
         return;
       }
+      if (connectBusy) {
+        send(ws, 'log', 'A connection attempt is already in progress.');
+        return;
+      }
+      connectBusy = true;
+      connectAborted = false;
 
       send(ws, 'status', { status: 'connecting', server });
 
@@ -167,7 +179,7 @@ wss.on('connection', async (ws) => {
           : [server];
 
         for (const candidate of candidates) {
-          if (tried >= MAX_ATTEMPTS) break;
+          if (connectAborted || tried >= MAX_ATTEMPTS) break;
           if (!candidate?.config) continue;
           tried++;
 
@@ -178,6 +190,7 @@ wss.on('connection', async (ws) => {
 
           try {
             const result = await connect(candidate, (log) => send(ws, 'log', log));
+            if (connectAborted) { await disconnect(); break; }
             const vpnIP = result.ip ?? candidate.ip;
             send(ws, 'status', { status: 'connected', server: candidate, vpnIP });
             startSpeedMonitor();
@@ -190,7 +203,10 @@ wss.on('connection', async (ws) => {
           }
         }
 
-        if (lastErr) {
+        if (connectAborted) {
+          const ip = await getPublicIP();
+          send(ws, 'status', { status: 'disconnected', realIP: ip ?? 'unknown' });
+        } else if (lastErr) {
           send(ws, 'error', `All ${tried} servers failed. Last error: ${lastErr.message}`);
           const ip = await getPublicIP();
           send(ws, 'status', { status: 'disconnected', realIP: ip ?? 'unknown' });
@@ -199,12 +215,15 @@ wss.on('connection', async (ws) => {
         send(ws, 'error', outerErr.message);
         const ip = await getPublicIP();
         send(ws, 'status', { status: 'disconnected', realIP: ip ?? 'unknown' });
+      } finally {
+        connectBusy = false;
       }
       return;
     }
 
     // ── disconnect ──
     if (msg.type === 'disconnect') {
+      connectAborted = true; // stop any in-flight retry loop
       stopSpeedMonitor();
       send(ws, 'status', { status: 'disconnecting' });
       await disconnect();

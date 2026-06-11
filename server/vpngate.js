@@ -15,7 +15,12 @@ let cache = { servers: [], ts: 0 };
 function fetchRaw(url) {
   return new Promise((resolve, reject) => {
     const mod = url.startsWith('https') ? https : http;
-    const req = mod.get(url, { timeout: 20000 }, (res) => {
+    const opts = {
+      timeout: 20000,
+      // VPNGate rejects some non-browser clients with 403
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36' },
+    };
+    const req = mod.get(url, opts, (res) => {
       if (res.statusCode === 301 || res.statusCode === 302) {
         return fetchRaw(res.headers.location).then(resolve).catch(reject);
       }
@@ -133,15 +138,25 @@ function regionFor(code) {
   return 'Asia Pacific';
 }
 
+let inflight = null; // dedupe concurrent fetches (prewarm + API call racing)
+
 async function getServers() {
   if (Date.now() - cache.ts < CACHE_TTL_MS && cache.servers.length > 0) {
     return cache.servers;
   }
-  const raw = await fetchWithRetry();
-  const servers = parseCSV(raw);
-  if (servers.length === 0) throw new Error('VPNGate returned no usable servers');
-  cache = { servers, ts: Date.now() };
-  return servers;
+  if (inflight) return inflight;
+  inflight = (async () => {
+    try {
+      const raw = await fetchWithRetry();
+      const servers = parseCSV(raw);
+      if (servers.length === 0) throw new Error('VPNGate returned no usable servers');
+      cache = { servers, ts: Date.now() };
+      return servers;
+    } finally {
+      inflight = null;
+    }
+  })();
+  return inflight;
 }
 
 module.exports = { getServers };
