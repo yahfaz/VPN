@@ -153,17 +153,50 @@ wss.on('connection', async (ws) => {
 
       send(ws, 'status', { status: 'connecting', server });
 
-      try {
-        const result = await connect(server, (log) => {
-          send(ws, 'log', log);
-        });
+      // Try up to 5 servers: the requested one first, then next-best by score
+      const MAX_ATTEMPTS = 5;
+      let lastErr = null;
+      let tried = 0;
 
-        const vpnIP = result.ip ?? server.ip;
-        send(ws, 'status', { status: 'connected', server, vpnIP });
-        startSpeedMonitor();
-      } catch (err) {
-        console.error('[openvpn] connect error:', err.message);
-        send(ws, 'error', err.message);
+      try {
+        const allServers = await getServers().catch(() => []);
+        const startIdx = allServers.findIndex(s => s.id === server.id);
+        // Build candidate list: requested server first, then subsequent by score
+        const candidates = startIdx >= 0
+          ? [allServers[startIdx], ...allServers.slice(startIdx + 1)]
+          : [server];
+
+        for (const candidate of candidates) {
+          if (tried >= MAX_ATTEMPTS) break;
+          if (!candidate?.config) continue;
+          tried++;
+
+          if (tried > 1) {
+            send(ws, 'log', `Trying next server: ${candidate.country} (${candidate.ip}) [attempt ${tried}/${MAX_ATTEMPTS}]`);
+            send(ws, 'status', { status: 'connecting', server: candidate });
+          }
+
+          try {
+            const result = await connect(candidate, (log) => send(ws, 'log', log));
+            const vpnIP = result.ip ?? candidate.ip;
+            send(ws, 'status', { status: 'connected', server: candidate, vpnIP });
+            startSpeedMonitor();
+            lastErr = null;
+            break;
+          } catch (err) {
+            lastErr = err;
+            console.error(`[openvpn] attempt ${tried} failed (${candidate.ip}): ${err.message}`);
+            send(ws, 'log', `Failed: ${err.message}`);
+          }
+        }
+
+        if (lastErr) {
+          send(ws, 'error', `All ${tried} servers failed. Last error: ${lastErr.message}`);
+          const ip = await getPublicIP();
+          send(ws, 'status', { status: 'disconnected', realIP: ip ?? 'unknown' });
+        }
+      } catch (outerErr) {
+        send(ws, 'error', outerErr.message);
         const ip = await getPublicIP();
         send(ws, 'status', { status: 'disconnected', realIP: ip ?? 'unknown' });
       }
