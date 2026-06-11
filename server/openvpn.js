@@ -42,6 +42,18 @@ function patchConfig(raw) {
     .replace(/^log\b.*$/gm, '')
     .replace(/^log-append.*$/gm, '');
 
+  // ── Data cipher compatibility (OpenVPN 2.6 ↔ old VPNGate servers) ──────
+  // VPNGate servers are old and negotiate legacy ciphers (AES-128-CBC, BF-CBC).
+  // In 2.6 the data-channel cipher must be explicitly allowed, otherwise the
+  // session can stall right after PUSH_REQUEST (no PUSH_REPLY). We append a
+  // broad data-ciphers list plus a fallback so any server cipher is accepted.
+  if (!/^data-ciphers\b/m.test(cfg)) {
+    cfg += '\ndata-ciphers AES-256-GCM:AES-128-GCM:AES-256-CBC:AES-128-CBC:BF-CBC';
+  }
+  if (!/^data-ciphers-fallback\b/m.test(cfg)) {
+    cfg += '\ndata-ciphers-fallback AES-128-CBC';
+  }
+
   // Replace auth-user-pass with our creds file path.
   // OpenVPN config parsing treats backslashes as escape characters, so on Windows the path
   // must use forward slashes (OpenVPN accepts forward slashes on every platform).
@@ -117,11 +129,13 @@ async function connect(server, onLog) {
 
     proc = spawn(cmd, cmdArgs, spawnOpts);
 
-    // VPNGate servers are free/public and can be slow to negotiate, so allow up to 60s.
+    // Fail fast (30s) so the caller can move on to the next server quickly.
+    // A reachable VPNGate server completes the handshake in well under 30s;
+    // anything slower is effectively blocked/unreachable from this network.
     const timer = setTimeout(() => {
-      reject(new Error('Connection timed out after 60s'));
+      reject(new Error('Connection timed out after 30s'));
       disconnect();
-    }, 60000);
+    }, 30000);
 
     function handleOutput(data) {
       const msg = data.toString();
