@@ -23,14 +23,24 @@ const wss = new WebSocket.Server({ server: httpServer });
 const isWindows = process.platform === 'win32';
 
 function findOpenVPN() {
-  // Check common Windows install paths first
+  const fs = require('fs');
+  const path = require('path');
+
+  // Check bundled binary first — shipped with the Electron app via extraResources
+  const resourcesPath = process.env.RESOURCES_PATH;
+  if (resourcesPath) {
+    const bundledExe = path.join(resourcesPath, 'win', 'openvpn.exe');
+    try { fs.accessSync(bundledExe); return bundledExe; } catch { /* not present */ }
+  }
+
+  // Check common Windows system install paths
   if (isWindows) {
     const candidates = [
       'C:\\Program Files\\OpenVPN\\bin\\openvpn.exe',
       'C:\\Program Files (x86)\\OpenVPN\\bin\\openvpn.exe',
     ];
     for (const p of candidates) {
-      try { require('fs').accessSync(p); return p; } catch { /* try next */ }
+      try { fs.accessSync(p); return p; } catch { /* try next */ }
     }
     // `2>nul` is a cmd.exe redirection; execSync does not run through cmd.exe by default,
     // so it would be passed to `where` as a literal argument. Suppress stderr via stdio instead.
