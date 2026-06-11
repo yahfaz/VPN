@@ -67,11 +67,35 @@ export function ServerCard({ server, compact = false }: Props) {
         </div>
         {!compact && (
           <div className="flex items-center gap-3 mt-1">
-            <span className="text-xs text-gray-500">{server.serverCount} servers</span>
-            <div className="flex items-center gap-1">
-              <div className={clsx('w-1.5 h-1.5 rounded-full', loadColor(server.load))} />
-              <span className="text-xs text-gray-500">{server.load}% load</span>
-            </div>
+            {server.config ? (
+              // Live VPNGate server: show what actually matters for picking one
+              <>
+                {server.proto && (
+                  <span className={clsx(
+                    'text-xs font-mono px-1.5 py-0.5 rounded',
+                    server.firewallFriendly
+                      ? 'bg-teal-500/15 text-teal-400'
+                      : 'bg-navy-900 text-gray-500'
+                  )}>
+                    {server.proto.toUpperCase()}{server.port ? `:${server.port}` : ''}
+                  </span>
+                )}
+                {server.speedMbps !== undefined && server.speedMbps > 0 && (
+                  <span className="text-xs text-gray-500">{server.speedMbps} Mbps</span>
+                )}
+                {server.sessions !== undefined && (
+                  <span className="text-xs text-gray-500">{server.sessions} users</span>
+                )}
+              </>
+            ) : (
+              <>
+                <span className="text-xs text-gray-500">{server.serverCount} servers</span>
+                <div className="flex items-center gap-1">
+                  <div className={clsx('w-1.5 h-1.5 rounded-full', loadColor(server.load))} />
+                  <span className="text-xs text-gray-500">{server.load}% load</span>
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>

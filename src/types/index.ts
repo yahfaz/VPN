@@ -17,6 +17,10 @@ export interface Server {
   ping: number;
   load: number;
   speedMbps?: number;
+  sessions?: number;
+  proto?: string;
+  port?: number;
+  firewallFriendly?: boolean;
   type: ServerType;
   favorite: boolean;
 }

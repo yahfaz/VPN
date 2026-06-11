@@ -45,6 +45,9 @@ export function Servers() {
     const pair = multiHopPairs.find(p => p.id === pairId);
     if (!pair) return;
     selectMultiHop(pair);
+    // MultiHop chains need coordinated servers, which free VPNGate servers
+    // can't provide — only allow the simulated flow when backend is offline.
+    if (backendOnline) return;
     const entryServer = servers.find(s => s.country === pair.entryCountry) ?? servers[0];
     selectServer(entryServer);
     connect();
@@ -134,6 +137,11 @@ export function Servers() {
       {serverTab === 'multihop' ? (
         <div className="space-y-2">
           <p className="text-xs text-gray-500 px-1">Route traffic through two VPN servers for extra privacy</p>
+          {backendOnline && (
+            <div className="text-xs text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 rounded-xl px-3 py-2">
+              MultiHop is not available on free VPNGate servers — it requires coordinated server pairs.
+            </div>
+          )}
           {multiHopPairs.map(pair => (
             <div
               key={pair.id}

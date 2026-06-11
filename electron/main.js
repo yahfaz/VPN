@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, shell, Menu, Tray, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Menu } = require('electron');
 const path = require('path');
 const { fork } = require('child_process');
 const http = require('http');
@@ -9,7 +9,6 @@ const http = require('http');
 const isPacked = app.isPackaged;
 
 let mainWindow = null;
-let tray = null;
 let backendProcess = null;
 
 // ── Backend daemon ─────────────────────────────────────────────────────────
@@ -95,24 +94,12 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => mainWindow.show());
 
-  mainWindow.on('close', e => {
-    if (!app.isQuitting) { e.preventDefault(); mainWindow.hide(); }
-  });
-}
-
-// ── System tray ──────────────────────────────────────────────────────────────
-function createTray() {
-  // Minimal 1×1 transparent PNG so tray works without an icon file
-  const icon = nativeImage.createEmpty();
-  tray = new Tray(icon);
-  tray.setToolTip('SurfVPN');
-  const menu = Menu.buildFromTemplate([
-    { label: 'Show SurfVPN', click: () => mainWindow?.show() },
-    { type: 'separator' },
-    { label: 'Quit', click: () => { app.isQuitting = true; app.quit(); } },
-  ]);
-  tray.setContextMenu(menu);
-  tray.on('double-click', () => mainWindow?.show());
+  // Closing the window quits the app outright. Hiding to a tray icon is a trap
+  // here: we ship no tray icon asset, and an invisible tray entry on Windows
+  // means the user can never bring the window back. Quitting also tears down
+  // the backend (and its OpenVPN child via tree-kill), so the tunnel never
+  // lingers after the user thinks the app is closed.
+  mainWindow.on('closed', () => { mainWindow = null; });
 }
 
 // ── IPC ──────────────────────────────────────────────────────────────────────
@@ -122,7 +109,6 @@ ipcMain.handle('open-external', (_e, url) => shell.openExternal(url));
 // ── Lifecycle ────────────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
   startBackend();
-  createTray();
 
   const ready = await waitForBackend();
   if (!ready) console.warn('[electron] Backend not ready — opening window anyway');
@@ -131,7 +117,6 @@ app.whenReady().then(async () => {
 });
 
 app.on('before-quit', () => {
-  app.isQuitting = true;
   stopBackend();
 });
 

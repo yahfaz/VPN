@@ -9,6 +9,8 @@ const http = require('http');
 
 let proc = null;
 let onExit = null;
+let established = false;   // true once the tunnel is fully up
+let intentionalExit = false; // true while we are killing the process ourselves
 
 function getPublicIP() {
   return new Promise((resolve) => {
@@ -76,6 +78,8 @@ function patchConfig(raw) {
 
 async function connect(server, onLog) {
   if (proc) await disconnect();
+  established = false;
+  intentionalExit = false;
 
   const configPath = path.join(os.tmpdir(), 'surfvpn.ovpn');
   const authPath = path.join(os.tmpdir(), 'surfvpn-auth.txt');
@@ -143,6 +147,7 @@ async function connect(server, onLog) {
 
       if (msg.includes('Initialization Sequence Completed')) {
         clearTimeout(timer);
+        established = true;
         getPublicIP().then(ip => resolve({ ip }));
       }
       if (msg.includes('AUTH_FAILED')) {
@@ -177,7 +182,13 @@ async function connect(server, onLog) {
     proc.on('exit', (code) => {
       proc = null;
       clearTimeout(timer);
-      if (onExit) onExit(code);
+      // Only report *unexpected* drops of an established tunnel. Exits during
+      // the connect phase (handled by the reject paths above) or triggered by
+      // our own disconnect() must not fire the callback — otherwise the UI
+      // flaps to "disconnected" in the middle of an auto-retry sequence.
+      if (established && !intentionalExit && onExit) onExit(code);
+      established = false;
+      intentionalExit = false;
     });
 
     proc.on('error', (err) => {
@@ -190,6 +201,7 @@ async function connect(server, onLog) {
 function disconnect() {
   return new Promise((resolve) => {
     if (!proc) { resolve(); return; }
+    intentionalExit = true;
     proc.on('exit', () => resolve());
     try {
       if (process.platform === 'win32') {

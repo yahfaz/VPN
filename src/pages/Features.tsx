@@ -18,6 +18,11 @@ export function Features() {
         <p className="text-gray-400 text-sm mt-1">Advanced privacy and security controls</p>
       </div>
 
+      <div className="text-xs text-gray-400 bg-navy-800 border border-navy-600 rounded-xl px-3 py-2">
+        These features are a preview of what's coming. The core VPN tunnel (OpenVPN via VPNGate)
+        is fully functional today; the toggles below don't affect your connection yet.
+      </div>
+
       {/* Security */}
       <section>
         <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3 px-1">Security</h2>

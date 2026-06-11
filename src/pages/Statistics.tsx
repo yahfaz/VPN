@@ -145,12 +145,10 @@ export function Statistics() {
           {[
             { label: 'Status', value: isConnected ? '🟢 Connected' : '🔴 Disconnected' },
             { label: 'Server', value: connectedServer ? `${connectedServer.flag} ${connectedServer.city ?? connectedServer.country}` : '—' },
-            { label: 'Protocol', value: protocol },
-            { label: 'Encryption', value: 'AES-256-GCM' },
-            { label: 'DNS Leak Protection', value: '✅ Active' },
-            { label: 'IPv6 Leak Protection', value: '✅ Active' },
-            { label: 'Server Load', value: connectedServer ? `${connectedServer.load}%` : '—' },
-            { label: 'Latency', value: connectedServer ? `${connectedServer.ping}ms` : '—' },
+            { label: 'Protocol', value: isConnected && connectedServer?.proto ? `OpenVPN ${connectedServer.proto.toUpperCase()}` : protocol },
+            { label: 'Encryption', value: isConnected ? 'Negotiated per server (AES)' : '—' },
+            { label: 'Tunnel', value: isConnected ? '✅ All traffic routed via VPN' : '—' },
+            { label: 'Server Host', value: connectedServer?.hostname ?? '—' },
           ].map(({ label, value }) => (
             <div key={label} className="flex items-center justify-between py-2 border-b border-navy-700 last:border-0">
               <span className="text-sm text-gray-400">{label}</span>
