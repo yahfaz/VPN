@@ -90,6 +90,7 @@ export function Dashboard() {
 
       {/* Connection log — auto-shown while connecting so retry progress is visible */}
       {(showLog || status === 'connecting' || isVerifying) && connectionLog.length > 0 && (
+      {(showLog || status === 'connecting') && connectionLog.length > 0 && (
         <div className="card p-4 font-mono text-xs text-gray-400 max-h-40 overflow-y-auto space-y-0.5">
           {connectionLog.slice(-50).map((line, i) => (
             <div key={i} className={clsx(
