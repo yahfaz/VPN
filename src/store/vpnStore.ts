@@ -5,10 +5,12 @@ import { wsClient } from '../services/wsClient';
 
 // ── Types for backend messages ─────────────────────────────────────────────
 interface StatusPayload {
-  status: 'disconnected' | 'connecting' | 'connected' | 'disconnecting';
+  status: 'disconnected' | 'connecting' | 'verifying' | 'connected' | 'disconnecting';
   server?: Server;
   vpnIP?: string;
   realIP?: string;
+  verifiedCountry?: string;
+  verifiedCountryCode?: string;
 }
 
 interface InitPayload {
@@ -50,6 +52,8 @@ export const useVPNStore = create<VPNState & {
         connectedServer: d.server ?? get().selectedServer,
         connectedSince: new Date(),
         vpnIP: d.vpnIP ?? '',
+        verifiedCountry: d.verifiedCountry ?? '',
+        verifiedCountryCode: d.verifiedCountryCode ?? '',
       });
     } else if (d.status === 'disconnected') {
       set({
@@ -57,12 +61,18 @@ export const useVPNStore = create<VPNState & {
         connectedServer: null,
         connectedSince: null,
         vpnIP: '',
+        verifiedCountry: '',
+        verifiedCountryCode: '',
         downloadSpeed: 0,
         uploadSpeed: 0,
         realIP: d.realIP ?? get().realIP,
       });
     } else if (d.status === 'connecting') {
+      if (d.server) set({ selectedServer: d.server });
       set({ status: 'connecting' });
+    } else if (d.status === 'verifying') {
+      if (d.server) set({ selectedServer: d.server });
+      set({ status: 'verifying' });
     } else if (d.status === 'disconnecting') {
       set({ status: 'disconnecting' });
     }
@@ -134,6 +144,8 @@ export const useVPNStore = create<VPNState & {
     connectedSince: null,
     realIP: '...',
     vpnIP: '',
+    verifiedCountry: '',
+    verifiedCountryCode: '',
     protocol: 'OpenVPN UDP', // the engine actually in use — keep the UI honest
     downloadSpeed: 0,
     uploadSpeed: 0,
@@ -160,13 +172,13 @@ export const useVPNStore = create<VPNState & {
     splitTunneling: false,
     splitTunnelApps: SPLIT_TUNNEL_APPS,
 
-    // ── Server browser ──
-    servers: SERVERS,
+    // ── Server browser ── (USA-only: non-US static entries are filtered out)
+    servers: SERVERS.filter(s => s.countryCode === 'US'),
     multiHopPairs: MULTIHOP_PAIRS,
     searchQuery: '',
     activeRegion: 'All',
     serverTab: 'all',
-    recentServers: [SERVERS[6], SERVERS[18], SERVERS[50]],
+    recentServers: SERVERS.filter(s => s.countryCode === 'US').slice(0, 3),
 
     // ── Actions ──
     connect: () => {
@@ -174,7 +186,7 @@ export const useVPNStore = create<VPNState & {
       if (!selectedServer) return;
       // Ignore clicks while a connection attempt is already in flight —
       // otherwise the backend ends up with parallel retry loops.
-      if (status === 'connecting' || status === 'disconnecting') return;
+      if (status === 'connecting' || status === 'verifying' || status === 'disconnecting') return;
 
       if (backendOnline) {
         // Static fallback servers have no OpenVPN config — the backend can't connect to them.
@@ -226,7 +238,7 @@ export const useVPNStore = create<VPNState & {
 
     connectToServerByIndex: (index: number) => {
       const { vpngateServers, servers, backendOnline, status } = get();
-      if (status === 'connecting' || status === 'disconnecting') return;
+      if (status === 'connecting' || status === 'verifying' || status === 'disconnecting') return;
       const list = backendOnline && vpngateServers.length > 0 ? vpngateServers : servers;
       const server = list[index];
       if (!server) return;

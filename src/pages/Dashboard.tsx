@@ -26,7 +26,7 @@ function useTimer(connectedSince: Date | null) {
 export function Dashboard() {
   const {
     status, selectedServer, connectedServer, connectedSince,
-    realIP, vpnIP, protocol, updateSpeed,
+    realIP, vpnIP, verifiedCountry, verifiedCountryCode, protocol, updateSpeed,
     cleanWeb, killSwitch, rotatingIP,
     backendOnline, openvpnAvailable, connectionLog,
     connectToServerByIndex, vpngateServers, servers,
@@ -45,6 +45,8 @@ export function Dashboard() {
   }, [updateSpeed]);
 
   const isConnected = status === 'connected';
+  const isVerifying = status === 'verifying';
+  const isInFlight = status === 'connecting' || isVerifying || status === 'disconnecting';
   const displayServer = connectedServer ?? selectedServer;
 
   // Platform-aware OpenVPN install hint (the backend bundles openvpn.exe on Windows,
@@ -87,7 +89,7 @@ export function Dashboard() {
       </div>
 
       {/* Connection log — auto-shown while connecting so retry progress is visible */}
-      {(showLog || status === 'connecting') && connectionLog.length > 0 && (
+      {(showLog || status === 'connecting' || isVerifying) && connectionLog.length > 0 && (
         <div className="card p-4 font-mono text-xs text-gray-400 max-h-40 overflow-y-auto space-y-0.5">
           {connectionLog.slice(-50).map((line, i) => (
             <div key={i} className={clsx(
@@ -115,15 +117,20 @@ export function Dashboard() {
           'inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-semibold mb-6',
           isConnected
             ? 'bg-teal-500/15 text-teal-400 border border-teal-500/30'
-            : status === 'connecting'
+            : isInFlight
             ? 'bg-accent-blue/15 text-accent-blue border border-accent-blue/30'
             : 'bg-red-500/15 text-red-400 border border-red-500/30'
         )}>
           <div className={clsx(
             'w-2 h-2 rounded-full',
-            isConnected ? 'bg-teal-400 animate-pulse' : status === 'connecting' ? 'bg-accent-blue animate-pulse' : 'bg-red-400'
+            isConnected ? 'bg-teal-400 animate-pulse' : isInFlight ? 'bg-accent-blue animate-pulse' : 'bg-red-400'
           )} />
-          {isConnected ? 'Protected' : status === 'connecting' ? 'Connecting...' : status === 'disconnecting' ? 'Disconnecting...' : 'Not Protected'}
+          {isConnected
+            ? `Connected to USA${verifiedCountry ? ` · ${verifiedCountry}` : ''}`
+            : status === 'connecting' ? 'Connecting to USA server...'
+            : isVerifying ? 'Verifying USA IP...'
+            : status === 'disconnecting' ? 'Disconnecting...'
+            : 'Not Protected'}
         </div>
 
         <div className="flex justify-center mb-6">
@@ -139,10 +146,15 @@ export function Dashboard() {
           </div>
           <div className="bg-navy-800 rounded-xl p-3 text-left">
             <p className="text-gray-500 text-xs mb-1">VPN IP</p>
-            <p className={clsx('text-sm font-mono font-medium', isConnected ? 'text-teal-400' : 'text-gray-600')}>
-              {isConnected ? vpnIP : '—.—.—.—'}
+            <p className={clsx('text-sm font-mono font-medium', isConnected ? 'text-teal-400' : isVerifying ? 'text-accent-blue animate-pulse' : 'text-gray-600')}>
+              {isConnected ? vpnIP : isVerifying ? 'Verifying...' : '—.—.—.—'}
             </p>
-            <p className="text-gray-500 text-xs mt-0.5">{isConnected ? 'Masked' : 'Unmasked'}</p>
+            <p className="text-gray-500 text-xs mt-0.5">
+              {isConnected
+                ? (verifiedCountryCode ? `🇺🇸 ${verifiedCountryCode} Verified` : 'Masked')
+                : isVerifying ? 'Checking country...'
+                : 'Unmasked'}
+            </p>
           </div>
         </div>
       </div>
@@ -151,7 +163,7 @@ export function Dashboard() {
       {backendOnline && vpngateServers.length === 0 && (
         <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm border bg-yellow-500/10 border-yellow-500/25 text-yellow-400">
           <div className="w-3 h-3 rounded-full border-2 border-yellow-400 border-t-transparent animate-spin" />
-          <span>Loading live VPN servers… please wait before connecting.</span>
+          <span>Finding USA servers… please wait before connecting.</span>
         </div>
       )}
 
@@ -275,7 +287,7 @@ export function Dashboard() {
                 if (connectedServer?.id === server4.id) return;
                 connectToServerByIndex(3);
               }}
-              disabled={status === 'connecting' || status === 'disconnecting' || connectedServer?.id === server4.id}
+              disabled={isInFlight || connectedServer?.id === server4.id}
               className={clsx(
                 'px-4 py-2 rounded-xl text-sm font-bold transition-all',
                 connectedServer?.id === server4.id

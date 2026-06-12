@@ -56,12 +56,12 @@ export function Servers() {
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-4">
       <div>
-        <h1 className="text-2xl font-bold text-white">Server Locations</h1>
+        <h1 className="text-2xl font-bold text-white">🇺🇸 USA Server Locations</h1>
         <div className="flex items-center gap-2 mt-1">
           <p className="text-gray-400 text-sm">
             {backendOnline && vpngateServers.length > 0
-              ? `${vpngateServers.length} live servers from VPNGate`
-              : '4,500+ servers across 100 countries'}
+              ? `${vpngateServers.length} live USA servers from VPNGate`
+              : 'USA servers — IP verification required to connect'}
           </p>
           {backendOnline && vpngateServers.length > 0 && (
             <span className="flex items-center gap-1 text-xs text-teal-400 bg-teal-500/10 border border-teal-500/20 px-2 py-0.5 rounded-full">

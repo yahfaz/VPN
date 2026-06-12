@@ -5,7 +5,8 @@ import { useVPNStore } from '../store/vpnStore';
 export function ConnectionButton() {
   const { status, connect, disconnect } = useVPNStore();
   const isConnected = status === 'connected';
-  const isBusy = status === 'connecting' || status === 'disconnecting';
+  const isVerifying = status === 'verifying';
+  const isBusy = status === 'connecting' || isVerifying || status === 'disconnecting';
 
   const handleClick = () => {
     if (isBusy) return;
@@ -22,7 +23,7 @@ export function ConnectionButton() {
           <div className="absolute w-36 h-36 rounded-full bg-teal-500/15 connect-ring" style={{ animationDelay: '0.5s' }} />
         </>
       )}
-      {status === 'connecting' && (
+      {(status === 'connecting' || isVerifying) && (
         <>
           <div className="absolute w-44 h-44 rounded-full border border-accent-blue/30 animate-ping-slow" />
           <div className="absolute w-36 h-36 rounded-full border border-accent-blue/40 animate-spin-slow" />
@@ -49,11 +50,11 @@ export function ConnectionButton() {
           size={32}
           className={clsx(
             'transition-all',
-            isConnected ? 'text-teal-400' : status === 'connecting' ? 'text-accent-blue animate-pulse' : 'text-gray-300'
+            isConnected ? 'text-teal-400' : isBusy ? 'text-accent-blue animate-pulse' : 'text-gray-300'
           )}
         />
         <span className="text-xs font-semibold tracking-wide">
-          {status === 'connected' ? 'ON' : status === 'connecting' ? '...' : status === 'disconnecting' ? '...' : 'OFF'}
+          {isConnected ? 'ON' : isBusy ? '...' : 'OFF'}
         </span>
       </button>
     </div>
