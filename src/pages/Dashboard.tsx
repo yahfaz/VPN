@@ -28,7 +28,7 @@ export function Dashboard() {
     status, selectedServer, connectedServer, connectedSince,
     realIP, vpnIP, verifiedCountry, verifiedCountryCode, protocol, updateSpeed,
     cleanWeb, killSwitch, rotatingIP,
-    backendOnline, openvpnAvailable, connectionLog,
+    backendOnline, openvpnAvailable, connectionLog, serverFetchError,
     connectToServerByIndex, vpngateServers, servers, refreshServers,
   } = useVPNStore();
 
@@ -174,7 +174,13 @@ export function Dashboard() {
         <div className="flex items-center justify-between px-4 py-2.5 rounded-xl text-sm border bg-yellow-500/10 border-yellow-500/25 text-yellow-400">
           <div className="flex items-center gap-2">
             <div className={`w-3 h-3 rounded-full border-2 border-yellow-400 border-t-transparent ${refreshing ? 'animate-spin' : 'animate-spin'}`} />
-            <span>{refreshing ? 'Refreshing server list…' : 'Finding USA servers… this can take up to a minute on first launch. Retrying automatically.'}</span>
+            <span>
+              {refreshing
+                ? 'Refreshing server list…'
+                : serverFetchError
+                  ? `Can't load USA servers: ${serverFetchError} Retrying automatically…`
+                  : 'Finding USA servers… this can take up to a minute on first launch. Retrying automatically.'}
+            </span>
           </div>
           <button
             onClick={handleRefresh}
