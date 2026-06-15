@@ -9,7 +9,7 @@ const { getServers } = require('./vpngate');
 const { disconnect, isRunning, setExitCallback, getPublicIP } = require('./openvpn');
 const { connectUSA, ONLY_USA } = require('./vpn/openvpnManager');
 const { getUSAServers } = require('./vpn/providers/vpngateProvider');
-const { disableKillSwitch } = require('./vpn/features');
+const { enableKillSwitch, disableKillSwitch } = require('./vpn/features');
 const { execSync } = require('child_process');
 
 // Safety net: clear any kill-switch firewall rules a previous crash may have
