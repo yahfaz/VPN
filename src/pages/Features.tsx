@@ -18,9 +18,19 @@ export function Features() {
         <p className="text-gray-400 text-sm mt-1">Advanced privacy and security controls</p>
       </div>
 
-      <div className="text-xs text-gray-400 bg-navy-800 border border-navy-600 rounded-xl px-3 py-2">
-        These features are a preview of what's coming. The core VPN tunnel (OpenVPN via VPNGate)
-        is fully functional today; the toggles below don't affect your connection yet.
+      <div className="text-xs text-gray-300 bg-navy-800 border border-navy-600 rounded-xl px-3 py-2 space-y-1">
+        <p>
+          <span className="text-teal-400 font-semibold">Live</span> features affect your real
+          connection: <span className="text-white">Kill Switch</span> (OS firewall),
+          <span className="text-white"> CleanWeb</span> (ad/tracker-blocking DNS),
+          <span className="text-white"> Rotating IP</span>, and
+          <span className="text-white"> Auto-Connect</span>.
+        </p>
+        <p className="text-gray-500">
+          <span className="text-gray-400 font-semibold">Preview</span> features
+          (MultiHop, Camouflage, NoBorders, Split Tunneling) aren't functional on free single-hop
+          VPNGate servers yet.
+        </p>
       </div>
 
       {/* Security */}
@@ -29,19 +39,22 @@ export function Features() {
         <div className="space-y-3">
           <FeatureToggle
             title="Kill Switch"
-            description="Automatically cuts your internet if the VPN connection drops, preventing data leaks."
+            description="Cuts all internet traffic if the VPN connection drops, preventing data leaks. Enforced with OS firewall rules."
             icon="🔒"
             enabled={killSwitch}
             onToggle={toggleKillSwitch}
+            badge="Live"
+            badgeTone="live"
           />
 
           <FeatureToggle
             title="CleanWeb"
-            description="Blocks ads, trackers, malicious sites, and cookie pop-ups for a cleaner browsing experience."
+            description="Blocks ads, trackers, and malicious domains by routing the tunnel's DNS through an ad-blocking resolver."
             icon="🧹"
             enabled={cleanWeb}
             onToggle={toggleCleanWeb}
-            badge="2.0"
+            badge="Live"
+            badgeTone="live"
           >
             <div className="space-y-2">
               <p className="text-xs text-gray-400 mb-2">Protection level:</p>
@@ -75,10 +88,12 @@ export function Features() {
         <div className="space-y-3">
           <FeatureToggle
             title="MultiHop (Double VPN)"
-            description="Routes your traffic through two VPN servers instead of one for maximum anonymity."
+            description="Routes your traffic through two VPN servers instead of one. Not available on free single-hop VPNGate servers."
             icon="🔀"
             enabled={multiHop}
             onToggle={toggleMultiHop}
+            badge="Preview"
+            badgeTone="muted"
           >
             <p className="text-xs text-gray-400 mb-3">Select a MultiHop route:</p>
             <div className="space-y-2 max-h-48 overflow-y-auto">
@@ -105,10 +120,12 @@ export function Features() {
 
           <FeatureToggle
             title="Rotating IP"
-            description="Changes your IP address every few minutes while staying connected to the same server."
+            description="Reconnects to a different USA server every 10 minutes so your public IP changes over time."
             icon="🔄"
             enabled={rotatingIP}
             onToggle={toggleRotatingIP}
+            badge="Live"
+            badgeTone="live"
           />
         </div>
       </section>
@@ -119,10 +136,12 @@ export function Features() {
         <div className="space-y-3">
           <FeatureToggle
             title="Camouflage Mode"
-            description="Makes your VPN traffic look like regular HTTPS traffic, bypassing deep packet inspection."
+            description="Makes VPN traffic look like regular HTTPS, bypassing deep packet inspection. Requires obfuscation-capable servers, which free VPNGate doesn't provide."
             icon="🕵️"
             enabled={camouflageMode}
             onToggle={toggleCamouflageMode}
+            badge="Preview"
+            badgeTone="muted"
           />
 
           <FeatureToggle
@@ -131,6 +150,8 @@ export function Features() {
             icon="🌍"
             enabled={noBordersMode}
             onToggle={toggleNoBordersMode}
+            badge="Preview"
+            badgeTone="muted"
           />
         </div>
       </section>
@@ -141,10 +162,12 @@ export function Features() {
         <div className="space-y-3">
           <FeatureToggle
             title="Split Tunneling (Bypasser)"
-            description="Choose which apps bypass the VPN and connect directly to the internet."
+            description="Choose which apps bypass the VPN and connect directly. Per-app routing isn't wired into the tunnel yet."
             icon="✂️"
             enabled={splitTunneling}
             onToggle={toggleSplitTunneling}
+            badge="Preview"
+            badgeTone="muted"
           >
             <div className="space-y-2">
               <p className="text-xs text-gray-400 mb-2">
@@ -178,10 +201,12 @@ export function Features() {
 
           <FeatureToggle
             title="Auto-Connect"
-            description="Automatically connects to the VPN when you join an untrusted Wi-Fi network."
+            description="Automatically connects to a USA server on startup and reconnects if the tunnel drops unexpectedly."
             icon="⚡"
             enabled={autoConnect}
             onToggle={toggleAutoConnect}
+            badge="Live"
+            badgeTone="live"
           />
         </div>
       </section>

@@ -242,9 +242,14 @@ export function Dashboard() {
       {/* Speed chart */}
       <SpeedChart />
 
-      {/* Feature previews (toggles don't affect the tunnel yet) */}
+      {/* Active protections — these apply to the real tunnel */}
       <div className="card p-4">
-        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Feature Previews · Coming Soon</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Active Protections</h3>
+          <button onClick={() => navigate('/features')} className="text-xs text-accent-blue hover:text-blue-300 transition-colors">
+            Manage
+          </button>
+        </div>
         <div className="grid grid-cols-3 gap-2">
           {[
             { label: 'CleanWeb', on: cleanWeb, icon: '🛡️' },

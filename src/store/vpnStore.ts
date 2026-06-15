@@ -124,6 +124,24 @@ export const useVPNStore = create<VPNState & {
 
   const API_BASE = () => `http://${window.location.hostname || 'localhost'}:3001`;
 
+  // Feature flags sent to the backend at connect time. These map directly onto
+  // real behaviour: CleanWeb → ad/tracker-blocking DNS, killSwitch → OS firewall,
+  // rotatingIP → periodic reconnect to a different US server.
+  const featureOptions = () => {
+    const { cleanWeb, cleanWebLevel, killSwitch, rotatingIP } = get();
+    return { cleanWeb, cleanWebLevel, killSwitch, rotatingIP };
+  };
+
+  // CleanWeb (DNS) and Rotating IP can only change on a live tunnel by
+  // re-establishing it, so reconnect when one is toggled while connected.
+  const reapplyIfConnected = () => {
+    const { status, backendOnline, connectedServer } = get();
+    if (backendOnline && status === 'connected' && connectedServer?.config) {
+      set(s => ({ connectionLog: [...s.connectionLog.slice(-99), 'Reconnecting to apply new settings…'] }));
+      wsClient.send('connect', { server: connectedServer, options: featureOptions() });
+    }
+  };
+
   // Fetch VPNGate servers from backend, with retry
   const fetchVPNGateServers = async (attempt = 1, force = false) => {
     try {
@@ -213,7 +231,7 @@ export const useVPNStore = create<VPNState & {
           return;
         }
         set({ status: 'connecting' });
-        wsClient.send('connect', selectedServer);
+        wsClient.send('connect', { server: selectedServer, options: featureOptions() });
       } else {
         // Simulation fallback when backend isn't running
         set({ status: 'connecting' });
@@ -272,7 +290,7 @@ export const useVPNStore = create<VPNState & {
           return;
         }
         set({ status: 'connecting' });
-        wsClient.send('connect', server);
+        wsClient.send('connect', { server, options: featureOptions() });
       } else {
         set({ status: 'connecting' });
         setTimeout(() => {
@@ -288,14 +306,22 @@ export const useVPNStore = create<VPNState & {
 
     setProtocol: (protocol: Protocol) => set({ protocol }),
 
-    toggleKillSwitch: () => set(s => ({ killSwitch: !s.killSwitch })),
-    toggleCleanWeb: () => set(s => ({ cleanWeb: !s.cleanWeb })),
-    setCleanWebLevel: (level) => set({ cleanWebLevel: level }),
+    toggleKillSwitch: () => {
+      const next = !get().killSwitch;
+      set({ killSwitch: next });
+      // Kill switch (firewall) can be applied/removed live without a reconnect.
+      const { status, backendOnline, connectedServer } = get();
+      if (backendOnline && status === 'connected') {
+        wsClient.send('setFeature', { killSwitch: next, serverIP: connectedServer?.ip });
+      }
+    },
+    toggleCleanWeb: () => { set(s => ({ cleanWeb: !s.cleanWeb })); reapplyIfConnected(); },
+    setCleanWebLevel: (level) => { set({ cleanWebLevel: level }); reapplyIfConnected(); },
     toggleMultiHop: () => set(s => ({ multiHop: !s.multiHop })),
     selectMultiHop: (pair: MultiHopPair) => set({ selectedMultiHop: pair }),
     toggleCamouflageMode: () => set(s => ({ camouflageMode: !s.camouflageMode })),
     toggleNoBordersMode: () => set(s => ({ noBordersMode: !s.noBordersMode })),
-    toggleRotatingIP: () => set(s => ({ rotatingIP: !s.rotatingIP })),
+    toggleRotatingIP: () => { set(s => ({ rotatingIP: !s.rotatingIP })); reapplyIfConnected(); },
     toggleAutoConnect: () => set(s => ({ autoConnect: !s.autoConnect })),
     toggleSplitTunneling: () => set(s => ({ splitTunneling: !s.splitTunneling })),
 

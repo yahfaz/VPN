@@ -6,6 +6,7 @@ const path = require('path');
 const os = require('os');
 const https = require('https');
 const http = require('http');
+const { cleanWebConfigLines } = require('./vpn/features');
 
 let proc = null;
 let onExit = null;
@@ -26,7 +27,7 @@ function getPublicIP() {
   });
 }
 
-function patchConfig(raw) {
+function patchConfig(raw, options = {}) {
   let cfg = raw
     // ── Deprecated directives removed in OpenVPN 2.5 / 2.6 ──────────────
     // These cause an immediate "Options error" exit before any connection attempt.
@@ -73,10 +74,17 @@ function patchConfig(raw) {
   // raising the script security level would only widen the attack surface), and we do NOT add
   // `log-append` (the old hardcoded /tmp/surfvpn.log path does not exist on Windows; logs are
   // already streamed live to the UI over the WebSocket).
+
+  // CleanWeb — point the tunnel's DNS at an ad/tracker-blocking resolver. Added
+  // last so it overrides anything stripped above. block-outside-dns (Windows)
+  // prevents the OS from leaking queries to its configured resolver.
+  if (options.cleanWeb) {
+    cfg += '\n' + cleanWebConfigLines(options.cleanWebLevel);
+  }
   return cfg;
 }
 
-async function connect(server, onLog) {
+async function connect(server, onLog, options = {}) {
   if (proc) await disconnect();
   established = false;
   intentionalExit = false;
@@ -84,7 +92,7 @@ async function connect(server, onLog) {
   const configPath = path.join(os.tmpdir(), 'surfvpn.ovpn');
   const authPath = path.join(os.tmpdir(), 'surfvpn-auth.txt');
 
-  const patched = patchConfig(server.config);
+  const patched = patchConfig(server.config, options);
   fs.writeFileSync(configPath, patched, { mode: 0o600 });
   fs.writeFileSync(authPath, 'vpn\nvpn\n', { mode: 0o600 });
 

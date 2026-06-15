@@ -5,6 +5,7 @@ const { getUSAServers, ONLY_USA } = require('./providers/vpngateProvider');
 const { ServerSelector } = require('./serverSelector');
 const { verifyUSA } = require('./ipVerifier');
 const { getPublicIP } = require('../openvpn');
+const { enableKillSwitch, disableKillSwitch } = require('./features');
 
 const MAX_ATTEMPTS = 5;
 
@@ -14,11 +15,16 @@ const MAX_ATTEMPTS = 5;
  * @param {object} requestedServer - server object from the client connect message
  * @param {function} sendFn - (type, data) => void  — proxies messages to the WebSocket client
  * @param {function} isAborted - () => boolean  — returns true when a disconnect was requested
+ * @param {object} options - feature flags: { cleanWeb, cleanWebLevel, killSwitch }
  * @returns {Promise<boolean>} true if connected + US-verified, false otherwise
  */
-async function connectUSA(requestedServer, sendFn, isAborted) {
+async function connectUSA(requestedServer, sendFn, isAborted, options = {}) {
   sendFn('status', { status: 'connecting', server: requestedServer });
   sendFn('log', 'Finding USA servers...');
+  // Clear any kill-switch rules from a previous session before we start a new
+  // attempt — otherwise a stale "block outbound" policy would prevent the
+  // handshake from ever reaching the server.
+  disableKillSwitch();
 
   const allServers = await getUSAServers().catch(() => []);
 
@@ -51,7 +57,7 @@ async function connectUSA(requestedServer, sendFn, isAborted) {
 
     // ── OpenVPN connect ────────────────────────────────────────────────────
     try {
-      await connect(candidate, (log) => sendFn('log', log));
+      await connect(candidate, (log) => sendFn('log', log), options);
     } catch (err) {
       selector.markFailed(candidate.id);
       lastErr = err;
@@ -73,6 +79,11 @@ async function connectUSA(requestedServer, sendFn, isAborted) {
       sendFn('log', `Detected: ${v.ip} — ${v.country} (${v.countryCode})`);
 
       if (v.isUSA) {
+        // Engage the kill switch only now that we have a verified US tunnel, so
+        // a failed/abandoned attempt never leaves traffic blocked.
+        if (options.killSwitch) {
+          enableKillSwitch(candidate.ip, (log) => sendFn('log', log));
+        }
         sendFn('status', {
           status: 'connected',
           server: candidate,
