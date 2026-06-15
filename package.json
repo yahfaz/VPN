@@ -21,7 +21,8 @@
     "electron:build:deb": "npm run build && npm run build:server && electron-builder --linux deb",
     "electron:build:appimage": "npm run build && npm run build:server && electron-builder --linux AppImage",
     "preview": "vite preview",
-    "prepare:win": "node scripts/prepare-win-openvpn.js"
+    "prepare:win": "node scripts/prepare-win-openvpn.js",
+    "gen:icons": "node scripts/make-icons.js"
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -73,6 +74,7 @@
       }
     ],
     "linux": {
+      "icon": "assets/icon.png",
       "target": [
         {
           "target": "AppImage",
@@ -93,10 +95,12 @@
       "vendor": "SurfVPN"
     },
     "mac": {
+      "icon": "assets/icon.png",
       "target": "dmg",
       "category": "public.app-category.utilities"
     },
     "win": {
+      "icon": "assets/icon.ico",
       "target": "nsis",
       "requestedExecutionLevel": "requireAdministrator",
       "extraResources": [
@@ -110,6 +114,9 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico",
       "include": "build/installer.nsh"
     }
   }

@@ -70,6 +70,7 @@ function createWindow() {
     minHeight: 620,
     backgroundColor: '#0E1A35',
     title: 'SurfVPN',
+    icon: path.join(__dirname, 'icon.png'),
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
