@@ -32,8 +32,10 @@ export function Dashboard() {
     connectToServerByIndex, vpngateServers, servers, refreshServers,
   } = useVPNStore();
 
-  // Server 4 = index 3 (0-based) of the active server list
-  const allServers = backendOnline && vpngateServers.length > 0 ? vpngateServers : servers;
+  // Server 4 = index 3 (0-based) of the active server list. When the backend is
+  // online we only ever surface real VPNGate servers — never the static
+  // placeholder list, which can't actually be connected to.
+  const allServers = backendOnline ? vpngateServers : servers;
   const server4 = allServers[3];
   const navigate = useNavigate();
   const elapsed = useTimer(connectedSince);
@@ -328,9 +330,17 @@ export function Dashboard() {
           </button>
         </div>
         <div className="space-y-1">
-          {useVPNStore.getState().recentServers.slice(0, 3).map(s => (
-            <ServerCard key={s.id} server={s} compact />
-          ))}
+          {(() => {
+            // In the desktop app, only show recents that are real (connectable)
+            // VPNGate servers — never the static placeholder entries.
+            const recents = useVPNStore.getState().recentServers
+              .filter(s => !backendOnline || s.config)
+              .slice(0, 3);
+            if (recents.length === 0) {
+              return <p className="text-sm text-gray-600 px-1 py-2">No recent servers yet — connect to one to see it here.</p>;
+            }
+            return recents.map(s => <ServerCard key={s.id} server={s} compact />);
+          })()}
         </div>
       </div>
     </div>

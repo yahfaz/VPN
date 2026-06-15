@@ -321,7 +321,9 @@ export const useVPNStore = create<VPNState & {
     setBackendOnline: (v: boolean) => set({ backendOnline: v }),
 
     refreshServers: async () => {
-      set({ vpngateServers: [] }); // clear to show the loading banner
+      // Don't blank vpngateServers here — clearing it makes the UI fall back to
+      // the static placeholder list, which looks like the real servers "vanished".
+      // The Refresh button's own spinner already signals that work is in progress.
       await fetchVPNGateServers(1, true);
     },
 
