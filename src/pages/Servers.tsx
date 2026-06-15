@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import clsx from 'clsx';
 import { Search, X, Globe, Star, Clock, Shuffle, RefreshCw } from 'lucide-react';
 import { useVPNStore } from '../store/vpnStore';
@@ -18,8 +18,17 @@ export function Servers() {
     servers, vpngateServers, multiHopPairs, searchQuery, activeRegion, serverTab, recentServers,
     selectedMultiHop, backendOnline,
     setSearchQuery, setActiveRegion, setServerTab,
-    selectMultiHop, connect, selectServer,
+    selectMultiHop, connect, selectServer, refreshServers,
   } = useVPNStore();
+
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    await refreshServers();
+    setRefreshing(false);
+  };
 
   // Use real VPNGate servers when backend is online, fall back to static list
   const sourceServers = backendOnline && vpngateServers.length > 0 ? vpngateServers : servers;
@@ -68,6 +77,17 @@ export function Servers() {
               <RefreshCw size={10} />
               Live
             </span>
+          )}
+          {backendOnline && (
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="flex items-center gap-1 text-xs text-gray-400 hover:text-white bg-navy-800 border border-navy-600 px-2 py-0.5 rounded-full transition-colors disabled:opacity-50"
+              title="Refresh server list"
+            >
+              <RefreshCw size={10} className={refreshing ? 'animate-spin' : ''} />
+              {refreshing ? 'Refreshing...' : 'Refresh'}
+            </button>
           )}
           {!backendOnline && (
             <span className="text-xs text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded-full">

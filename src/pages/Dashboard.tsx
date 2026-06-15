@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import clsx from 'clsx';
-import { Clock, Shield, Lock, ChevronRight, Terminal, Wifi, WifiOff } from 'lucide-react';
+import { Clock, Shield, Lock, ChevronRight, Terminal, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 import { useVPNStore } from '../store/vpnStore';
 import { ConnectionButton } from '../components/ConnectionButton';
 import { SpeedChart } from '../components/SpeedChart';
@@ -29,7 +29,7 @@ export function Dashboard() {
     realIP, vpnIP, verifiedCountry, verifiedCountryCode, protocol, updateSpeed,
     cleanWeb, killSwitch, rotatingIP,
     backendOnline, openvpnAvailable, connectionLog,
-    connectToServerByIndex, vpngateServers, servers,
+    connectToServerByIndex, vpngateServers, servers, refreshServers,
   } = useVPNStore();
 
   // Server 4 = index 3 (0-based) of the active server list
@@ -38,6 +38,14 @@ export function Dashboard() {
   const navigate = useNavigate();
   const elapsed = useTimer(connectedSince);
   const [showLog, setShowLog] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    await refreshServers();
+    setRefreshing(false);
+  };
 
   useEffect(() => {
     const id = setInterval(updateSpeed, 1000);
@@ -161,9 +169,19 @@ export function Dashboard() {
 
       {/* Servers loading banner */}
       {backendOnline && vpngateServers.length === 0 && (
-        <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm border bg-yellow-500/10 border-yellow-500/25 text-yellow-400">
-          <div className="w-3 h-3 rounded-full border-2 border-yellow-400 border-t-transparent animate-spin" />
-          <span>Finding USA servers… please wait before connecting.</span>
+        <div className="flex items-center justify-between px-4 py-2.5 rounded-xl text-sm border bg-yellow-500/10 border-yellow-500/25 text-yellow-400">
+          <div className="flex items-center gap-2">
+            <div className={`w-3 h-3 rounded-full border-2 border-yellow-400 border-t-transparent ${refreshing ? 'animate-spin' : 'animate-spin'}`} />
+            <span>{refreshing ? 'Refreshing server list…' : 'Finding USA servers… please wait before connecting.'}</span>
+          </div>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="flex items-center gap-1 text-xs opacity-70 hover:opacity-100 transition-opacity disabled:opacity-40"
+          >
+            <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />
+            Retry
+          </button>
         </div>
       )}
 

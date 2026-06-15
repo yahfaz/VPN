@@ -67,6 +67,13 @@ export const useVPNStore = create<VPNState & {
         uploadSpeed: 0,
         realIP: d.realIP ?? get().realIP,
       });
+      // Auto-reconnect if the drop was unexpected (not from user clicking Disconnect)
+      if (!userDisconnected && get().autoConnect) {
+        setTimeout(() => {
+          if (get().status === 'disconnected') get().connect();
+        }, 5000);
+      }
+      userDisconnected = false;
     } else if (d.status === 'connecting') {
       if (d.server) set({ selectedServer: d.server });
       set({ status: 'connecting' });
@@ -115,10 +122,13 @@ export const useVPNStore = create<VPNState & {
   // Start connecting to backend
   wsClient.connect();
 
+  const API_BASE = () => `http://${window.location.hostname || 'localhost'}:3001`;
+
   // Fetch VPNGate servers from backend, with retry
-  const fetchVPNGateServers = async (attempt = 1) => {
+  const fetchVPNGateServers = async (attempt = 1, force = false) => {
     try {
-      const res = await fetch(`http://${window.location.hostname || 'localhost'}:3001/api/servers`);
+      const url = `${API_BASE()}/api/servers${force ? '?force=true' : ''}`;
+      const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const { servers } = await res.json() as { servers: Server[] };
       if (servers?.length) {
@@ -126,6 +136,11 @@ export const useVPNStore = create<VPNState & {
         const cur = get().selectedServer;
         const extra = !cur?.config ? { selectedServer: servers[0] } : {};
         set({ vpngateServers: servers, ...extra });
+        // Trigger auto-connect once on first load if the feature is enabled
+        const { autoConnect, status } = get();
+        if (autoConnect && status === 'disconnected') {
+          setTimeout(() => get().connect(), 500);
+        }
         return;
       }
     } catch { /* backend not running or still warming up */ }
@@ -135,6 +150,9 @@ export const useVPNStore = create<VPNState & {
     }
   };
   setTimeout(fetchVPNGateServers, 1500); // slight delay to let WS init first
+
+  // Track whether the user explicitly disconnected — prevents auto-reconnect after manual disconnect
+  let userDisconnected = false;
 
   return {
     // ── Connection state ──
@@ -211,6 +229,7 @@ export const useVPNStore = create<VPNState & {
     },
 
     disconnect: () => {
+      userDisconnected = true;
       const { backendOnline } = get();
       if (backendOnline) {
         wsClient.send('disconnect');
@@ -300,6 +319,11 @@ export const useVPNStore = create<VPNState & {
     setServerTab: (tab) => set({ serverTab: tab }),
 
     setBackendOnline: (v: boolean) => set({ backendOnline: v }),
+
+    refreshServers: async () => {
+      set({ vpngateServers: [] }); // clear to show the loading banner
+      await fetchVPNGateServers(1, true);
+    },
 
     // Kept for backward compatibility (Statistics page uses it for sim mode)
     updateSpeed: () => {

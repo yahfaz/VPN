@@ -73,11 +73,13 @@ app.get('/api/ip', async (_req, res) => {
   res.json({ ip: ip ?? 'unknown' });
 });
 
-// /api/servers returns USA-only servers when ONLY_USA=true
-app.get('/api/servers', async (_req, res) => {
+// /api/servers — returns USA-only servers when ONLY_USA=true
+// Pass ?force=true to bypass the 10-min cache and re-fetch from VPNGate immediately
+app.get('/api/servers', async (req, res) => {
   try {
-    const servers = ONLY_USA ? await getUSAServers() : await getServers();
-    res.json({ servers, count: servers.length, cached: true });
+    const force = req.query.force === 'true';
+    const servers = ONLY_USA ? await getUSAServers(force) : await getServers(force);
+    res.json({ servers, count: servers.length, cached: !force });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

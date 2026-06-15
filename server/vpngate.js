@@ -140,9 +140,15 @@ function regionFor(code) {
 
 let inflight = null; // dedupe concurrent fetches (prewarm + API call racing)
 
-async function getServers() {
-  if (Date.now() - cache.ts < CACHE_TTL_MS && cache.servers.length > 0) {
+async function getServers(force = false) {
+  if (!force && Date.now() - cache.ts < CACHE_TTL_MS && cache.servers.length > 0) {
     return cache.servers;
+  }
+  // Force-refresh: bust the cache and wait for any in-flight fetch to settle first
+  if (force) {
+    cache = { servers: [], ts: 0 };
+    if (inflight) await inflight.catch(() => {});
+    inflight = null;
   }
   if (inflight) return inflight;
   inflight = (async () => {

@@ -176,7 +176,7 @@ export function Settings() {
         <h2 className="text-sm font-semibold text-white mb-3">About</h2>
         <div className="space-y-2">
           {[
-            ['Version', '1.0.0'],
+            ['Version', '1.0.2'],
             ['VPN Engine', 'OpenVPN 2.6'],
             ['Server Network', 'VPNGate (free, volunteer-run)'],
             ['License', 'Free & Open Source'],
