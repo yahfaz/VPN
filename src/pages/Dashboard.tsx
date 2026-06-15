@@ -32,8 +32,10 @@ export function Dashboard() {
     connectToServerByIndex, vpngateServers, servers, refreshServers,
   } = useVPNStore();
 
-  // Server 4 = index 3 (0-based) of the active server list
-  const allServers = backendOnline && vpngateServers.length > 0 ? vpngateServers : servers;
+  // Server 4 = index 3 (0-based) of the active server list. When the backend is
+  // online we only ever surface real VPNGate servers — never the static
+  // placeholder list, which can't actually be connected to.
+  const allServers = backendOnline ? vpngateServers : servers;
   const server4 = allServers[3];
   const navigate = useNavigate();
   const elapsed = useTimer(connectedSince);
@@ -240,9 +242,14 @@ export function Dashboard() {
       {/* Speed chart */}
       <SpeedChart />
 
-      {/* Feature previews (toggles don't affect the tunnel yet) */}
+      {/* Active protections — these apply to the real tunnel */}
       <div className="card p-4">
-        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Feature Previews · Coming Soon</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Active Protections</h3>
+          <button onClick={() => navigate('/features')} className="text-xs text-accent-blue hover:text-blue-300 transition-colors">
+            Manage
+          </button>
+        </div>
         <div className="grid grid-cols-3 gap-2">
           {[
             { label: 'CleanWeb', on: cleanWeb, icon: '🛡️' },
@@ -328,9 +335,17 @@ export function Dashboard() {
           </button>
         </div>
         <div className="space-y-1">
-          {useVPNStore.getState().recentServers.slice(0, 3).map(s => (
-            <ServerCard key={s.id} server={s} compact />
-          ))}
+          {(() => {
+            // In the desktop app, only show recents that are real (connectable)
+            // VPNGate servers — never the static placeholder entries.
+            const recents = useVPNStore.getState().recentServers
+              .filter(s => !backendOnline || s.config)
+              .slice(0, 3);
+            if (recents.length === 0) {
+              return <p className="text-sm text-gray-600 px-1 py-2">No recent servers yet — connect to one to see it here.</p>;
+            }
+            return recents.map(s => <ServerCard key={s.id} server={s} compact />);
+          })()}
         </div>
       </div>
     </div>

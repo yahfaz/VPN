@@ -9,7 +9,12 @@ const { getServers } = require('./vpngate');
 const { disconnect, isRunning, setExitCallback, getPublicIP } = require('./openvpn');
 const { connectUSA, ONLY_USA } = require('./vpn/openvpnManager');
 const { getUSAServers } = require('./vpn/providers/vpngateProvider');
+const { enableKillSwitch, disableKillSwitch } = require('./vpn/features');
 const { execSync } = require('child_process');
+
+// Safety net: clear any kill-switch firewall rules a previous crash may have
+// left active, so the machine never boots the backend with traffic blocked.
+disableKillSwitch();
 
 const PORT = 3001;
 
@@ -144,7 +149,12 @@ wss.on('connection', async (ws) => {
 
   // Handle unexpected VPN exit
   setExitCallback(() => {
+    stopRotation();
     stopSpeedMonitor();
+    // Release the kill switch so an unexpected drop doesn't strand the user with
+    // all traffic blocked. (A stricter "fail-closed forever" kill switch would
+    // keep it on, but that traps users with no way back online from the app.)
+    disableKillSwitch((log) => send(ws, 'log', log));
     getPublicIP().then(ip => {
       send(ws, 'status', { status: 'disconnected', realIP: ip ?? 'unknown' });
     });
@@ -153,6 +163,57 @@ wss.on('connection', async (ws) => {
   // Connection state: prevents parallel retry loops and lets disconnect abort an in-flight attempt.
   let connectBusy = false;
   let connectAborted = false;
+  let rotateTimer = null;
+  let lastOptions = {};      // feature flags from the most recent connect
+  let lastServer = null;     // server we connected to (for rotation)
+  const ROTATE_INTERVAL_MS = 10 * 60 * 1000; // rotate the public IP every 10 min
+
+  function stopRotation() {
+    if (rotateTimer) { clearInterval(rotateTimer); rotateTimer = null; }
+  }
+
+  // Normalise either a bare server object (legacy) or { server, options }.
+  function parseConnectData(data) {
+    if (data && data.server) return { server: data.server, options: data.options || {} };
+    return { server: data, options: {} };
+  }
+
+  async function runConnect(server, options) {
+    if (connectBusy) {
+      send(ws, 'log', 'A connection attempt is already in progress.');
+      return;
+    }
+    connectBusy = true;
+    connectAborted = false;
+    try {
+      const connected = await connectUSA(
+        server,
+        (type, data) => send(ws, type, data),
+        () => connectAborted,
+        options,
+      );
+      if (connected && !connectAborted) {
+        startSpeedMonitor();
+        // Rotating IP: periodically reconnect to a different US server so the
+        // public IP changes over time. The selector inside connectUSA already
+        // prefers servers other than the one that just failed/was used.
+        if (options.rotatingIP) {
+          stopRotation();
+          rotateTimer = setInterval(() => {
+            if (connectBusy || connectAborted) return;
+            send(ws, 'log', 'Rotating IP — switching USA server…');
+            runConnect(server, options);
+          }, ROTATE_INTERVAL_MS);
+        }
+      }
+    } catch (outerErr) {
+      send(ws, 'error', outerErr.message);
+      const ip = await getPublicIP();
+      send(ws, 'status', { status: 'disconnected', realIP: ip ?? 'unknown' });
+    } finally {
+      connectBusy = false;
+    }
+  }
 
   ws.on('message', async (raw) => {
     let msg;
@@ -160,7 +221,7 @@ wss.on('connection', async (ws) => {
 
     // ── connect ──
     if (msg.type === 'connect') {
-      const server = msg.data;
+      const { server, options } = parseConnectData(msg.data);
       if (!openvpnAvailable) {
         send(ws, 'error', `OpenVPN not found. ${installHint}`);
         return;
@@ -169,46 +230,43 @@ wss.on('connection', async (ws) => {
         send(ws, 'error', 'No VPN config for selected server');
         return;
       }
-      if (connectBusy) {
-        send(ws, 'log', 'A connection attempt is already in progress.');
-        return;
-      }
-      connectBusy = true;
-      connectAborted = false;
-
-      try {
-        const connected = await connectUSA(
-          server,
-          (type, data) => send(ws, type, data),
-          () => connectAborted,
-        );
-        if (connected && !connectAborted) {
-          startSpeedMonitor();
-        }
-      } catch (outerErr) {
-        send(ws, 'error', outerErr.message);
-        const ip = await getPublicIP();
-        send(ws, 'status', { status: 'disconnected', realIP: ip ?? 'unknown' });
-      } finally {
-        connectBusy = false;
-      }
+      lastOptions = options;
+      lastServer = server;
+      await runConnect(server, options);
       return;
     }
 
     // ── disconnect ──
     if (msg.type === 'disconnect') {
       connectAborted = true; // abort any in-flight retry loop
+      stopRotation();
       stopSpeedMonitor();
       send(ws, 'status', { status: 'disconnecting' });
       await disconnect();
+      disableKillSwitch((log) => send(ws, 'log', log));
       const ip = await getPublicIP();
       send(ws, 'status', { status: 'disconnected', realIP: ip ?? 'unknown' });
+      return;
+    }
+
+    // ── live feature toggle (while connected) ──
+    // Kill switch can be applied/removed without reconnecting; CleanWeb / Rotating
+    // changes only take effect on the next connect, which the client triggers.
+    if (msg.type === 'setFeature' && isRunning()) {
+      const { killSwitch, serverIP } = msg.data || {};
+      if (killSwitch === true) {
+        const { enableKillSwitch } = require('./vpn/features');
+        enableKillSwitch(serverIP || lastServer?.ip, (log) => send(ws, 'log', log));
+      } else if (killSwitch === false) {
+        disableKillSwitch((log) => send(ws, 'log', log));
+      }
       return;
     }
   });
 
   ws.on('close', () => {
     console.log('[ws] Client disconnected');
+    stopRotation();
     stopSpeedMonitor();
   });
 });

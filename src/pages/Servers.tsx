@@ -30,8 +30,11 @@ export function Servers() {
     setRefreshing(false);
   };
 
-  // Use real VPNGate servers when backend is online, fall back to static list
-  const sourceServers = backendOnline && vpngateServers.length > 0 ? vpngateServers : servers;
+  // When the backend is online, only ever show real VPNGate servers — never the
+  // static placeholder list (which would misrepresent fake data as connectable).
+  // The static list is only a fallback for the backendless web-preview/sim mode.
+  const sourceServers = backendOnline ? vpngateServers : servers;
+  const loadingLiveServers = backendOnline && vpngateServers.length === 0;
 
   const filtered = useMemo(() => {
     let list = sourceServers;
@@ -199,11 +202,21 @@ export function Servers() {
       ) : (
         <div className="space-y-1">
           {displayList.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              <Globe size={40} className="mx-auto mb-3 opacity-30" />
-              <p className="font-medium">No servers found</p>
-              <p className="text-sm mt-1">Try a different search or region</p>
-            </div>
+            loadingLiveServers ? (
+              <div className="text-center py-12 text-gray-500">
+                <RefreshCw size={40} className="mx-auto mb-3 opacity-40 animate-spin" />
+                <p className="font-medium">Finding live USA servers…</p>
+                <p className="text-sm mt-1">Fetching the latest list from VPNGate</p>
+              </div>
+            ) : (
+              <div className="text-center py-12 text-gray-500">
+                <Globe size={40} className="mx-auto mb-3 opacity-30" />
+                <p className="font-medium">No servers found</p>
+                <p className="text-sm mt-1">
+                  {backendOnline ? 'Tap Refresh to reload the USA server list' : 'Try a different search or region'}
+                </p>
+              </div>
+            )
           ) : (
             displayList.map(s => <ServerCard key={s.id} server={s} />)
           )}
