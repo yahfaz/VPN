@@ -142,7 +142,7 @@ export const useVPNStore = create<VPNState & {
     }
   };
 
-  // Fetch VPNGate servers from backend, with retry
+  // Fetch VPNGate servers from backend, with self-recovering retry
   const fetchVPNGateServers = async (attempt = 1, force = false) => {
     try {
       const url = `${API_BASE()}/api/servers${force ? '?force=true' : ''}`;
@@ -161,11 +161,16 @@ export const useVPNStore = create<VPNState & {
         }
         return;
       }
-    } catch { /* backend not running or still warming up */ }
-    // Retry up to 6 times with increasing delay (backend pre-warms VPNGate cache)
-    if (attempt < 6) {
-      setTimeout(() => fetchVPNGateServers(attempt + 1), Math.min(attempt * 3000, 15000));
-    }
+    } catch { /* backend warming up, VPNGate slow, or US pool momentarily empty */ }
+
+    // Self-recovery: keep retrying with capped backoff instead of giving up, so
+    // the app never gets permanently stuck on "Finding USA servers…". The
+    // background (non-force) loop stops the moment servers exist from any source;
+    // a manual force refresh retries a bounded number of times.
+    if (!force && get().vpngateServers.length > 0) return;
+    if (force && attempt >= 6) return;
+    const delay = Math.min(attempt * 2000 + 1000, 15000);
+    setTimeout(() => fetchVPNGateServers(attempt + 1, force), delay);
   };
   setTimeout(fetchVPNGateServers, 1500); // slight delay to let WS init first
 
