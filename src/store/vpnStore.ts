@@ -32,6 +32,7 @@ export const useVPNStore = create<VPNState & {
   openvpnAvailable: boolean;
   vpngateServers: Server[];
   connectionLog: string[];
+  serverFetchError: string;
   setBackendOnline: (v: boolean) => void;
 }>((set, get) => {
   // Wire up WebSocket listeners once
@@ -142,18 +143,19 @@ export const useVPNStore = create<VPNState & {
     }
   };
 
-  // Fetch VPNGate servers from backend, with retry
+  // Fetch VPNGate servers from backend, with self-recovering retry
   const fetchVPNGateServers = async (attempt = 1, force = false) => {
     try {
       const url = `${API_BASE()}/api/servers${force ? '?force=true' : ''}`;
       const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const { servers } = await res.json() as { servers: Server[] };
+      const body = await res.json().catch(() => ({})) as { servers?: Server[]; error?: string };
+      if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+      const servers = body.servers;
       if (servers?.length) {
         // Auto-select first real server if current selection has no config
         const cur = get().selectedServer;
         const extra = !cur?.config ? { selectedServer: servers[0] } : {};
-        set({ vpngateServers: servers, ...extra });
+        set({ vpngateServers: servers, serverFetchError: '', ...extra });
         // Trigger auto-connect once on first load if the feature is enabled
         const { autoConnect, status } = get();
         if (autoConnect && status === 'disconnected') {
@@ -161,11 +163,21 @@ export const useVPNStore = create<VPNState & {
         }
         return;
       }
-    } catch { /* backend not running or still warming up */ }
-    // Retry up to 6 times with increasing delay (backend pre-warms VPNGate cache)
-    if (attempt < 6) {
-      setTimeout(() => fetchVPNGateServers(attempt + 1), Math.min(attempt * 3000, 15000));
+      // Reachable but empty — record why so the UI can explain the wait.
+      set({ serverFetchError: body.error || 'No USA servers available yet — retrying…' });
+    } catch (err) {
+      // Backend warming up, VPNGate slow/blocked, or US pool momentarily empty.
+      set({ serverFetchError: err instanceof Error ? err.message : 'Server list unavailable — retrying…' });
     }
+
+    // Self-recovery: keep retrying with capped backoff instead of giving up, so
+    // the app never gets permanently stuck on "Finding USA servers…". The
+    // background (non-force) loop stops the moment servers exist from any source;
+    // a manual force refresh retries a bounded number of times.
+    if (!force && get().vpngateServers.length > 0) return;
+    if (force && attempt >= 6) return;
+    const delay = Math.min(attempt * 2000 + 1000, 15000);
+    setTimeout(() => fetchVPNGateServers(attempt + 1, force), delay);
   };
   setTimeout(fetchVPNGateServers, 1500); // slight delay to let WS init first
 
@@ -194,6 +206,7 @@ export const useVPNStore = create<VPNState & {
     openvpnAvailable: false,
     vpngateServers: [],
     connectionLog: [],
+    serverFetchError: '',
 
     // ── Features ──
     killSwitch: true,

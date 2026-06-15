@@ -5,7 +5,7 @@ const http = require('http');
 const WebSocket = require('ws');
 const cors = require('cors');
 const si = require('systeminformation');
-const { getServers } = require('./vpngate');
+const { getServers, getLastError } = require('./vpngate');
 const { disconnect, isRunning, setExitCallback, getPublicIP } = require('./openvpn');
 const { connectUSA, ONLY_USA } = require('./vpn/openvpnManager');
 const { getUSAServers } = require('./vpn/providers/vpngateProvider');
@@ -84,9 +84,14 @@ app.get('/api/servers', async (req, res) => {
   try {
     const force = req.query.force === 'true';
     const servers = ONLY_USA ? await getUSAServers(force) : await getServers(force);
-    res.json({ servers, count: servers.length, cached: !force });
+    // Reachable VPNGate but zero US servers in the current list — tell the client
+    // why so it doesn't show an indefinite "loading" with no explanation.
+    const error = servers.length === 0
+      ? (ONLY_USA ? 'No USA servers in the current VPNGate list — retrying.' : 'VPNGate returned no servers.')
+      : null;
+    res.json({ servers, count: servers.length, cached: !force, error });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: getLastError() || err.message });
   }
 });
 
