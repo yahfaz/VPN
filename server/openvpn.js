@@ -57,14 +57,19 @@ function patchConfig(raw, options = {}) {
     cfg += '\ndata-ciphers-fallback AES-128-CBC';
   }
 
-  // Replace auth-user-pass with our creds file path.
+  // Replace auth-user-pass with our creds file path. VPNGate servers authenticate
+  // with vpn/vpn; cert-based servers (your own VPS via easy-rsa) set
+  // authUserPass:false, so we must NOT inject credentials the server never asked
+  // for — doing so makes OpenVPN error out before the handshake.
   // OpenVPN config parsing treats backslashes as escape characters, so on Windows the path
   // must use forward slashes (OpenVPN accepts forward slashes on every platform).
-  const authPath = path.join(os.tmpdir(), 'surfvpn-auth.txt').replace(/\\/g, '/');
-  if (/^auth-user-pass\s*$/m.test(cfg)) {
-    cfg = cfg.replace(/^auth-user-pass\s*$/m, `auth-user-pass ${authPath}`);
-  } else if (!cfg.includes('auth-user-pass')) {
-    cfg += `\nauth-user-pass ${authPath}`;
+  if (options.authUserPass !== false) {
+    const authPath = path.join(os.tmpdir(), 'surfvpn-auth.txt').replace(/\\/g, '/');
+    if (/^auth-user-pass\s*$/m.test(cfg)) {
+      cfg = cfg.replace(/^auth-user-pass\s*$/m, `auth-user-pass ${authPath}`);
+    } else if (!cfg.includes('auth-user-pass')) {
+      cfg += `\nauth-user-pass ${authPath}`;
+    }
   }
 
   // Route all traffic through VPN (redirect-gateway is intentionally kept active).
@@ -92,7 +97,7 @@ async function connect(server, onLog, options = {}) {
   const configPath = path.join(os.tmpdir(), 'surfvpn.ovpn');
   const authPath = path.join(os.tmpdir(), 'surfvpn-auth.txt');
 
-  const patched = patchConfig(server.config, options);
+  const patched = patchConfig(server.config, { ...options, authUserPass: server.authUserPass !== false });
   fs.writeFileSync(configPath, patched, { mode: 0o600 });
   fs.writeFileSync(authPath, 'vpn\nvpn\n', { mode: 0o600 });
 
