@@ -1,9 +1,8 @@
 # Using your own AWS VPS as the primary VPN server
 
-Nx3VPN can connect to your own server as the **primary US endpoint**, with the
-free VPNGate servers kept only as an automatic backup. This is the most reliable
-setup: a guaranteed, always-on US IP with no dependency on VPNGate's flaky
-volunteer pool or its occasionally-blocked (HTTP 403) server list.
+Nx3VPN connects **only** to your own server — a guaranteed, always-on US IP with
+no dependency on any public server list. The free VPNGate pool is **off by
+default**; set `ENABLE_VPNGATE_FALLBACK=true` if you ever want it as a backup.
 
 ## Requirements
 
@@ -49,10 +48,10 @@ installer by placing it next to the bundled resources.)
 **My US Server** appears at the top of the server list and is selected by default.
 Click Connect:
 
-- The app connects to your VPS first.
-- If the VPS is ever unreachable, it automatically falls back to VPNGate US servers
-  (the 10-attempt auto-retry loop handles the failover).
-- CleanWeb, Kill Switch, and Rotating IP all work the same as with VPNGate servers.
+- The app connects to your VPS, and only your VPS.
+- If a connection attempt fails, it retries the same server (up to 10 attempts)
+  rather than falling back to any free server.
+- CleanWeb, Kill Switch, and Rotating IP all work as normal.
 
 ## Notes
 
