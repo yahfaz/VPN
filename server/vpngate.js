@@ -3,14 +3,24 @@
 const http = require('http');
 const https = require('https');
 
-// Try HTTPS mirror first (more reliable in some regions), fall back to HTTP
-const VPNGATE_URLS = [
+// Direct VPNGate endpoints (HTTPS first — more reliable in some regions).
+const VPNGATE_TARGET = 'https://www.vpngate.net/api/iphone/';
+const DIRECT_URLS = [
   'https://www.vpngate.net/api/iphone/',
   'http://www.vpngate.net/api/iphone/',
 ];
+// Public read-only proxies, tried only when the direct API is blocked or returns
+// 403 (common on some ISPs / datacenter IPs). The VPNGate server list is public
+// data, so routing the fetch through a proxy leaks nothing sensitive.
+const PROXY_URLS = [
+  `https://api.allorigins.win/raw?url=${encodeURIComponent(VPNGATE_TARGET)}`,
+  `https://api.codetabs.com/v1/proxy/?quest=${VPNGATE_TARGET}`,
+];
+const VPNGATE_URLS = [...DIRECT_URLS, ...PROXY_URLS];
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 let cache = { servers: [], ts: 0 };
+let lastError = null; // last fetch failure reason, surfaced to the UI for diagnosis
 
 function fetchRaw(url) {
   return new Promise((resolve, reject) => {
@@ -140,9 +150,15 @@ function regionFor(code) {
 
 let inflight = null; // dedupe concurrent fetches (prewarm + API call racing)
 
-async function getServers() {
-  if (Date.now() - cache.ts < CACHE_TTL_MS && cache.servers.length > 0) {
+async function getServers(force = false) {
+  if (!force && Date.now() - cache.ts < CACHE_TTL_MS && cache.servers.length > 0) {
     return cache.servers;
+  }
+  // Force-refresh: bust the cache and wait for any in-flight fetch to settle first
+  if (force) {
+    cache = { servers: [], ts: 0 };
+    if (inflight) await inflight.catch(() => {});
+    inflight = null;
   }
   if (inflight) return inflight;
   inflight = (async () => {
@@ -151,7 +167,11 @@ async function getServers() {
       const servers = parseCSV(raw);
       if (servers.length === 0) throw new Error('VPNGate returned no usable servers');
       cache = { servers, ts: Date.now() };
+      lastError = null;
       return servers;
+    } catch (err) {
+      lastError = err.message;
+      throw err;
     } finally {
       inflight = null;
     }
@@ -159,4 +179,9 @@ async function getServers() {
   return inflight;
 }
 
-module.exports = { getServers };
+function getLastError() { return lastError; }
+
+// Current cached servers without triggering a fetch (may be empty on cold start).
+function getCachedServers() { return cache.servers; }
+
+module.exports = { getServers, getLastError, getCachedServers };

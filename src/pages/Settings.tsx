@@ -10,7 +10,7 @@ const PROTOCOLS: { id: Protocol; label: string; desc: string; badge?: string; di
 ];
 
 const DNS_OPTIONS = [
-  { id: 'surfvpn', label: 'SurfVPN DNS', desc: 'Private, no-log DNS servers. Default.' },
+  { id: 'nx3vpn', label: 'Nx3VPN DNS', desc: 'Private, no-log DNS servers. Default.' },
   { id: 'cloudflare', label: 'Cloudflare (1.1.1.1)', desc: 'Privacy-focused, extremely fast.' },
   { id: 'google', label: 'Google (8.8.8.8)', desc: 'Reliable and globally available.' },
   { id: 'custom', label: 'Custom DNS', desc: 'Enter your own DNS server addresses.' },
@@ -20,7 +20,7 @@ import { useState } from 'react';
 
 export function Settings() {
   const { protocol, setProtocol, autoConnect, toggleAutoConnect } = useVPNStore();
-  const [dns, setDns] = useState('surfvpn');
+  const [dns, setDns] = useState('nx3vpn');
   const [theme, setTheme] = useState<'dark' | 'darker'>('dark');
   const [startOnBoot, setStartOnBoot] = useState(false);
   const [notifications, setNotifications] = useState(true);
@@ -122,7 +122,7 @@ export function Settings() {
         <div className="space-y-3">
           {[
             { label: 'Auto-Connect', desc: 'Connect VPN on untrusted networks', value: autoConnect, toggle: toggleAutoConnect },
-            { label: 'Launch on Startup', desc: 'Start SurfVPN when device boots', value: startOnBoot, toggle: () => setStartOnBoot(v => !v) },
+            { label: 'Launch on Startup', desc: 'Start Nx3VPN when device boots', value: startOnBoot, toggle: () => setStartOnBoot(v => !v) },
             { label: 'Connection Notifications', desc: 'Show alerts when VPN state changes', value: notifications, toggle: () => setNotifications(v => !v) },
           ].map(({ label, desc, value, toggle }) => (
             <div key={label} className="flex items-center justify-between py-2 border-b border-navy-700 last:border-0">
@@ -176,7 +176,7 @@ export function Settings() {
         <h2 className="text-sm font-semibold text-white mb-3">About</h2>
         <div className="space-y-2">
           {[
-            ['Version', '1.0.0'],
+            ['Version', '1.0.2'],
             ['VPN Engine', 'OpenVPN 2.6'],
             ['Server Network', 'VPNGate (free, volunteer-run)'],
             ['License', 'Free & Open Source'],

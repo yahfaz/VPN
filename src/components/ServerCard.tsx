@@ -1,5 +1,6 @@
 import clsx from 'clsx';
 import { Star } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Server } from '../types';
 import { useVPNStore } from '../store/vpnStore';
 
@@ -22,6 +23,7 @@ function loadColor(load: number) {
 
 export function ServerCard({ server, compact = false }: Props) {
   const { selectedServer, connectedServer, selectServer, toggleFavorite, connect } = useVPNStore();
+  const navigate = useNavigate();
   const isSelected = selectedServer?.id === server.id;
   const isConnected = connectedServer?.id === server.id;
 
@@ -31,8 +33,11 @@ export function ServerCard({ server, compact = false }: Props) {
 
   const handleConnect = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isConnected) return;
     selectServer(server);
     connect();
+    // Jump to the dashboard so the user can watch the connecting/verifying status.
+    navigate('/');
   };
 
   return (

@@ -6,6 +6,7 @@ const path = require('path');
 const os = require('os');
 const https = require('https');
 const http = require('http');
+const { cleanWebConfigLines } = require('./vpn/features');
 
 let proc = null;
 let onExit = null;
@@ -26,7 +27,7 @@ function getPublicIP() {
   });
 }
 
-function patchConfig(raw) {
+function patchConfig(raw, options = {}) {
   let cfg = raw
     // ── Deprecated directives removed in OpenVPN 2.5 / 2.6 ──────────────
     // These cause an immediate "Options error" exit before any connection attempt.
@@ -56,14 +57,19 @@ function patchConfig(raw) {
     cfg += '\ndata-ciphers-fallback AES-128-CBC';
   }
 
-  // Replace auth-user-pass with our creds file path.
+  // Replace auth-user-pass with our creds file path. VPNGate servers authenticate
+  // with vpn/vpn; cert-based servers (your own VPS via easy-rsa) set
+  // authUserPass:false, so we must NOT inject credentials the server never asked
+  // for — doing so makes OpenVPN error out before the handshake.
   // OpenVPN config parsing treats backslashes as escape characters, so on Windows the path
   // must use forward slashes (OpenVPN accepts forward slashes on every platform).
-  const authPath = path.join(os.tmpdir(), 'surfvpn-auth.txt').replace(/\\/g, '/');
-  if (/^auth-user-pass\s*$/m.test(cfg)) {
-    cfg = cfg.replace(/^auth-user-pass\s*$/m, `auth-user-pass ${authPath}`);
-  } else if (!cfg.includes('auth-user-pass')) {
-    cfg += `\nauth-user-pass ${authPath}`;
+  if (options.authUserPass !== false) {
+    const authPath = path.join(os.tmpdir(), 'nx3vpn-auth.txt').replace(/\\/g, '/');
+    if (/^auth-user-pass\s*$/m.test(cfg)) {
+      cfg = cfg.replace(/^auth-user-pass\s*$/m, `auth-user-pass ${authPath}`);
+    } else if (!cfg.includes('auth-user-pass')) {
+      cfg += `\nauth-user-pass ${authPath}`;
+    }
   }
 
   // Route all traffic through VPN (redirect-gateway is intentionally kept active).
@@ -71,20 +77,27 @@ function patchConfig(raw) {
   //
   // We intentionally do NOT add `script-security 2` (no client-side scripts are used, so
   // raising the script security level would only widen the attack surface), and we do NOT add
-  // `log-append` (the old hardcoded /tmp/surfvpn.log path does not exist on Windows; logs are
+  // `log-append` (the old hardcoded /tmp/nx3vpn.log path does not exist on Windows; logs are
   // already streamed live to the UI over the WebSocket).
+
+  // CleanWeb — point the tunnel's DNS at an ad/tracker-blocking resolver. Added
+  // last so it overrides anything stripped above. block-outside-dns (Windows)
+  // prevents the OS from leaking queries to its configured resolver.
+  if (options.cleanWeb) {
+    cfg += '\n' + cleanWebConfigLines(options.cleanWebLevel);
+  }
   return cfg;
 }
 
-async function connect(server, onLog) {
+async function connect(server, onLog, options = {}) {
   if (proc) await disconnect();
   established = false;
   intentionalExit = false;
 
-  const configPath = path.join(os.tmpdir(), 'surfvpn.ovpn');
-  const authPath = path.join(os.tmpdir(), 'surfvpn-auth.txt');
+  const configPath = path.join(os.tmpdir(), 'nx3vpn.ovpn');
+  const authPath = path.join(os.tmpdir(), 'nx3vpn-auth.txt');
 
-  const patched = patchConfig(server.config);
+  const patched = patchConfig(server.config, { ...options, authUserPass: server.authUserPass !== false });
   fs.writeFileSync(configPath, patched, { mode: 0o600 });
   fs.writeFileSync(authPath, 'vpn\nvpn\n', { mode: 0o600 });
 

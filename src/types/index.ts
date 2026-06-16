@@ -112,4 +112,5 @@ export interface VPNState {
   setActiveRegion: (region: ServerRegion | 'All') => void;
   setServerTab: (tab: 'all' | 'favorites' | 'recent' | 'multihop') => void;
   updateSpeed: () => void;
+  refreshServers: () => Promise<void>;
 }

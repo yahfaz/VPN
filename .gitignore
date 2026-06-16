@@ -6,7 +6,7 @@ dist/
 *.log
 .DS_Store
 server/node_modules/
-/tmp/surfvpn*
+/tmp/nx3vpn*
 release/
 .claude/
 resources/win/

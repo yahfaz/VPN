@@ -32,6 +32,7 @@ export const useVPNStore = create<VPNState & {
   openvpnAvailable: boolean;
   vpngateServers: Server[];
   connectionLog: string[];
+  serverFetchError: string;
   setBackendOnline: (v: boolean) => void;
 }>((set, get) => {
   // Wire up WebSocket listeners once
@@ -67,6 +68,13 @@ export const useVPNStore = create<VPNState & {
         uploadSpeed: 0,
         realIP: d.realIP ?? get().realIP,
       });
+      // Auto-reconnect if the drop was unexpected (not from user clicking Disconnect)
+      if (!userDisconnected && get().autoConnect) {
+        setTimeout(() => {
+          if (get().status === 'disconnected') get().connect();
+        }, 5000);
+      }
+      userDisconnected = false;
     } else if (d.status === 'connecting') {
       if (d.server) set({ selectedServer: d.server });
       set({ status: 'connecting' });
@@ -115,26 +123,66 @@ export const useVPNStore = create<VPNState & {
   // Start connecting to backend
   wsClient.connect();
 
-  // Fetch VPNGate servers from backend, with retry
-  const fetchVPNGateServers = async (attempt = 1) => {
+  const API_BASE = () => `http://${window.location.hostname || 'localhost'}:3001`;
+
+  // Feature flags sent to the backend at connect time. These map directly onto
+  // real behaviour: CleanWeb → ad/tracker-blocking DNS, killSwitch → OS firewall,
+  // rotatingIP → periodic reconnect to a different US server.
+  const featureOptions = () => {
+    const { cleanWeb, cleanWebLevel, killSwitch, rotatingIP } = get();
+    return { cleanWeb, cleanWebLevel, killSwitch, rotatingIP };
+  };
+
+  // CleanWeb (DNS) and Rotating IP can only change on a live tunnel by
+  // re-establishing it, so reconnect when one is toggled while connected.
+  const reapplyIfConnected = () => {
+    const { status, backendOnline, connectedServer } = get();
+    if (backendOnline && status === 'connected' && connectedServer?.config) {
+      set(s => ({ connectionLog: [...s.connectionLog.slice(-99), 'Reconnecting to apply new settings…'] }));
+      wsClient.send('connect', { server: connectedServer, options: featureOptions() });
+    }
+  };
+
+  // Fetch VPNGate servers from backend, with self-recovering retry
+  const fetchVPNGateServers = async (attempt = 1, force = false) => {
     try {
-      const res = await fetch(`http://${window.location.hostname || 'localhost'}:3001/api/servers`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const { servers } = await res.json() as { servers: Server[] };
+      const url = `${API_BASE()}/api/servers${force ? '?force=true' : ''}`;
+      const res = await fetch(url);
+      const body = await res.json().catch(() => ({})) as { servers?: Server[]; error?: string };
+      if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+      const servers = body.servers;
       if (servers?.length) {
         // Auto-select first real server if current selection has no config
         const cur = get().selectedServer;
         const extra = !cur?.config ? { selectedServer: servers[0] } : {};
-        set({ vpngateServers: servers, ...extra });
+        set({ vpngateServers: servers, serverFetchError: '', ...extra });
+        // Trigger auto-connect once on first load if the feature is enabled
+        const { autoConnect, status } = get();
+        if (autoConnect && status === 'disconnected') {
+          setTimeout(() => get().connect(), 500);
+        }
         return;
       }
-    } catch { /* backend not running or still warming up */ }
-    // Retry up to 6 times with increasing delay (backend pre-warms VPNGate cache)
-    if (attempt < 6) {
-      setTimeout(() => fetchVPNGateServers(attempt + 1), Math.min(attempt * 3000, 15000));
+      // Reachable but empty — record why so the UI can explain the wait.
+      set({ serverFetchError: body.error || 'No USA servers available yet — retrying…' });
+    } catch (err) {
+      // Backend warming up, VPNGate slow/blocked, or US pool momentarily empty.
+      set({ serverFetchError: err instanceof Error ? err.message : 'Server list unavailable — retrying…' });
     }
+
+    // Self-recovery: keep retrying with capped backoff instead of giving up, so
+    // the app never gets permanently stuck on "Finding USA servers…". The
+    // background (non-force) loop stops the moment servers exist from any source;
+    // a manual force refresh retries a bounded number of times.
+    if (!force && get().vpngateServers.length > 0) return;
+    if (force && attempt >= 6) return;
+    const delay = Math.min(attempt * 2000 + 1000, 15000);
+    setTimeout(() => fetchVPNGateServers(attempt + 1, force), delay);
   };
   setTimeout(fetchVPNGateServers, 1500); // slight delay to let WS init first
+
+  // Track whether the user explicitly disconnected — prevents auto-reconnect after manual disconnect
+  let userDisconnected = false;
 
   return {
     // ── Connection state ──
@@ -158,6 +206,7 @@ export const useVPNStore = create<VPNState & {
     openvpnAvailable: false,
     vpngateServers: [],
     connectionLog: [],
+    serverFetchError: '',
 
     // ── Features ──
     killSwitch: true,
@@ -195,7 +244,7 @@ export const useVPNStore = create<VPNState & {
           return;
         }
         set({ status: 'connecting' });
-        wsClient.send('connect', selectedServer);
+        wsClient.send('connect', { server: selectedServer, options: featureOptions() });
       } else {
         // Simulation fallback when backend isn't running
         set({ status: 'connecting' });
@@ -211,6 +260,7 @@ export const useVPNStore = create<VPNState & {
     },
 
     disconnect: () => {
+      userDisconnected = true;
       const { backendOnline } = get();
       if (backendOnline) {
         wsClient.send('disconnect');
@@ -253,7 +303,7 @@ export const useVPNStore = create<VPNState & {
           return;
         }
         set({ status: 'connecting' });
-        wsClient.send('connect', server);
+        wsClient.send('connect', { server, options: featureOptions() });
       } else {
         set({ status: 'connecting' });
         setTimeout(() => {
@@ -269,14 +319,22 @@ export const useVPNStore = create<VPNState & {
 
     setProtocol: (protocol: Protocol) => set({ protocol }),
 
-    toggleKillSwitch: () => set(s => ({ killSwitch: !s.killSwitch })),
-    toggleCleanWeb: () => set(s => ({ cleanWeb: !s.cleanWeb })),
-    setCleanWebLevel: (level) => set({ cleanWebLevel: level }),
+    toggleKillSwitch: () => {
+      const next = !get().killSwitch;
+      set({ killSwitch: next });
+      // Kill switch (firewall) can be applied/removed live without a reconnect.
+      const { status, backendOnline, connectedServer } = get();
+      if (backendOnline && status === 'connected') {
+        wsClient.send('setFeature', { killSwitch: next, serverIP: connectedServer?.ip });
+      }
+    },
+    toggleCleanWeb: () => { set(s => ({ cleanWeb: !s.cleanWeb })); reapplyIfConnected(); },
+    setCleanWebLevel: (level) => { set({ cleanWebLevel: level }); reapplyIfConnected(); },
     toggleMultiHop: () => set(s => ({ multiHop: !s.multiHop })),
     selectMultiHop: (pair: MultiHopPair) => set({ selectedMultiHop: pair }),
     toggleCamouflageMode: () => set(s => ({ camouflageMode: !s.camouflageMode })),
     toggleNoBordersMode: () => set(s => ({ noBordersMode: !s.noBordersMode })),
-    toggleRotatingIP: () => set(s => ({ rotatingIP: !s.rotatingIP })),
+    toggleRotatingIP: () => { set(s => ({ rotatingIP: !s.rotatingIP })); reapplyIfConnected(); },
     toggleAutoConnect: () => set(s => ({ autoConnect: !s.autoConnect })),
     toggleSplitTunneling: () => set(s => ({ splitTunneling: !s.splitTunneling })),
 
@@ -300,6 +358,13 @@ export const useVPNStore = create<VPNState & {
     setServerTab: (tab) => set({ serverTab: tab }),
 
     setBackendOnline: (v: boolean) => set({ backendOnline: v }),
+
+    refreshServers: async () => {
+      // Don't blank vpngateServers here — clearing it makes the UI fall back to
+      // the static placeholder list, which looks like the real servers "vanished".
+      // The Refresh button's own spinner already signals that work is in progress.
+      await fetchVPNGateServers(1, true);
+    },
 
     // Kept for backward compatibility (Statistics page uses it for sim mode)
     updateSpeed: () => {

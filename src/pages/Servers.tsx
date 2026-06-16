@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import clsx from 'clsx';
 import { Search, X, Globe, Star, Clock, Shuffle, RefreshCw } from 'lucide-react';
 import { useVPNStore } from '../store/vpnStore';
@@ -18,11 +18,23 @@ export function Servers() {
     servers, vpngateServers, multiHopPairs, searchQuery, activeRegion, serverTab, recentServers,
     selectedMultiHop, backendOnline,
     setSearchQuery, setActiveRegion, setServerTab,
-    selectMultiHop, connect, selectServer,
+    selectMultiHop, connect, selectServer, refreshServers,
   } = useVPNStore();
 
-  // Use real VPNGate servers when backend is online, fall back to static list
-  const sourceServers = backendOnline && vpngateServers.length > 0 ? vpngateServers : servers;
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    await refreshServers();
+    setRefreshing(false);
+  };
+
+  // When the backend is online, only ever show real VPNGate servers — never the
+  // static placeholder list (which would misrepresent fake data as connectable).
+  // The static list is only a fallback for the backendless web-preview/sim mode.
+  const sourceServers = backendOnline ? vpngateServers : servers;
+  const loadingLiveServers = backendOnline && vpngateServers.length === 0;
 
   const filtered = useMemo(() => {
     let list = sourceServers;
@@ -68,6 +80,17 @@ export function Servers() {
               <RefreshCw size={10} />
               Live
             </span>
+          )}
+          {backendOnline && (
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="flex items-center gap-1 text-xs text-gray-400 hover:text-white bg-navy-800 border border-navy-600 px-2 py-0.5 rounded-full transition-colors disabled:opacity-50"
+              title="Refresh server list"
+            >
+              <RefreshCw size={10} className={refreshing ? 'animate-spin' : ''} />
+              {refreshing ? 'Refreshing...' : 'Refresh'}
+            </button>
           )}
           {!backendOnline && (
             <span className="text-xs text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded-full">
@@ -179,11 +202,21 @@ export function Servers() {
       ) : (
         <div className="space-y-1">
           {displayList.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              <Globe size={40} className="mx-auto mb-3 opacity-30" />
-              <p className="font-medium">No servers found</p>
-              <p className="text-sm mt-1">Try a different search or region</p>
-            </div>
+            loadingLiveServers ? (
+              <div className="text-center py-12 text-gray-500">
+                <RefreshCw size={40} className="mx-auto mb-3 opacity-40 animate-spin" />
+                <p className="font-medium">Finding live USA servers…</p>
+                <p className="text-sm mt-1">Fetching the latest list from VPNGate</p>
+              </div>
+            ) : (
+              <div className="text-center py-12 text-gray-500">
+                <Globe size={40} className="mx-auto mb-3 opacity-30" />
+                <p className="font-medium">No servers found</p>
+                <p className="text-sm mt-1">
+                  {backendOnline ? 'Tap Refresh to reload the USA server list' : 'Try a different search or region'}
+                </p>
+              </div>
+            )
           ) : (
             displayList.map(s => <ServerCard key={s.id} server={s} />)
           )}

@@ -7,10 +7,11 @@ interface Props {
   enabled: boolean;
   onToggle: () => void;
   badge?: string;
+  badgeTone?: 'blue' | 'live' | 'muted';
   children?: React.ReactNode;
 }
 
-export function FeatureToggle({ title, description, icon, enabled, onToggle, badge, children }: Props) {
+export function FeatureToggle({ title, description, icon, enabled, onToggle, badge, badgeTone = 'blue', children }: Props) {
   return (
     <div className={clsx(
       'card p-5 transition-all duration-200',
@@ -23,7 +24,14 @@ export function FeatureToggle({ title, description, icon, enabled, onToggle, bad
             <div className="flex items-center gap-2">
               <h3 className="text-white font-semibold text-sm">{title}</h3>
               {badge && (
-                <span className="text-xs bg-accent-blue/20 text-accent-blue border border-accent-blue/30 px-2 py-0.5 rounded-full font-medium">
+                <span className={clsx(
+                  'text-xs px-2 py-0.5 rounded-full font-medium border',
+                  badgeTone === 'live'
+                    ? 'bg-teal-500/20 text-teal-400 border-teal-500/30'
+                    : badgeTone === 'muted'
+                    ? 'bg-navy-900 text-gray-500 border-navy-600'
+                    : 'bg-accent-blue/20 text-accent-blue border-accent-blue/30'
+                )}>
                   {badge}
                 </span>
               )}
