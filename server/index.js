@@ -278,7 +278,7 @@ wss.on('connection', async (ws) => {
 
 // ── Start ──────────────────────────────────────────────────────────────────
 httpServer.listen(PORT, () => {
-  console.log(`\nSurfVPN backend listening on http://localhost:${PORT}`);
+  console.log(`\nNx3VPN backend listening on http://localhost:${PORT}`);
   console.log('Endpoints: GET /api/ip  GET /api/servers  GET /api/health');
   console.log('WebSocket: ws://localhost:3001\n');
 

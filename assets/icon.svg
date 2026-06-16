@@ -31,7 +31,7 @@
           fill="url(#shield)"/>
   </g>
 
-  <!-- Surf wave inside the shield (the "Surf" in SurfVPN) -->
+  <!-- Wave motif inside the shield -->
   <g fill="none" stroke-linecap="round">
     <path d="M330 560
              C390 510 430 610 512 560

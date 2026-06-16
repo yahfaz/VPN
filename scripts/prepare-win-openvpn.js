@@ -58,7 +58,7 @@ async function fetchOpenVPN() {
   }
 
   console.log('\n[1/2] Fetching OpenVPN 2.6.14...');
-  const tmpDir  = fs.mkdtempSync(path.join(os.tmpdir(), 'surfvpn-ovpn-'));
+  const tmpDir  = fs.mkdtempSync(path.join(os.tmpdir(), 'nx3vpn-ovpn-'));
   const msiPath = path.join(tmpDir, 'openvpn.msi');
 
   await download(OPENVPN_MSI_URL, msiPath);
@@ -106,7 +106,7 @@ async function fetchWintun() {
   }
 
   console.log('\n[2/2] Fetching wintun 0.14.1...');
-  const tmpDir  = fs.mkdtempSync(path.join(os.tmpdir(), 'surfvpn-wintun-'));
+  const tmpDir  = fs.mkdtempSync(path.join(os.tmpdir(), 'nx3vpn-wintun-'));
   const zipPath = path.join(tmpDir, 'wintun.zip');
 
   await download(WINTUN_ZIP_URL, zipPath);

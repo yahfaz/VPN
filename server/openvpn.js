@@ -64,7 +64,7 @@ function patchConfig(raw, options = {}) {
   // OpenVPN config parsing treats backslashes as escape characters, so on Windows the path
   // must use forward slashes (OpenVPN accepts forward slashes on every platform).
   if (options.authUserPass !== false) {
-    const authPath = path.join(os.tmpdir(), 'surfvpn-auth.txt').replace(/\\/g, '/');
+    const authPath = path.join(os.tmpdir(), 'nx3vpn-auth.txt').replace(/\\/g, '/');
     if (/^auth-user-pass\s*$/m.test(cfg)) {
       cfg = cfg.replace(/^auth-user-pass\s*$/m, `auth-user-pass ${authPath}`);
     } else if (!cfg.includes('auth-user-pass')) {
@@ -77,7 +77,7 @@ function patchConfig(raw, options = {}) {
   //
   // We intentionally do NOT add `script-security 2` (no client-side scripts are used, so
   // raising the script security level would only widen the attack surface), and we do NOT add
-  // `log-append` (the old hardcoded /tmp/surfvpn.log path does not exist on Windows; logs are
+  // `log-append` (the old hardcoded /tmp/nx3vpn.log path does not exist on Windows; logs are
   // already streamed live to the UI over the WebSocket).
 
   // CleanWeb — point the tunnel's DNS at an ad/tracker-blocking resolver. Added
@@ -94,8 +94,8 @@ async function connect(server, onLog, options = {}) {
   established = false;
   intentionalExit = false;
 
-  const configPath = path.join(os.tmpdir(), 'surfvpn.ovpn');
-  const authPath = path.join(os.tmpdir(), 'surfvpn-auth.txt');
+  const configPath = path.join(os.tmpdir(), 'nx3vpn.ovpn');
+  const authPath = path.join(os.tmpdir(), 'nx3vpn-auth.txt');
 
   const patched = patchConfig(server.config, { ...options, authUserPass: server.authUserPass !== false });
   fs.writeFileSync(configPath, patched, { mode: 0o600 });

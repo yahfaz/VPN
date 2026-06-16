@@ -24,7 +24,7 @@ export function Sidebar() {
           <Shield size={20} className="text-white" />
         </div>
         <div>
-          <p className="text-white font-bold text-lg leading-none">SurfVPN</p>
+          <p className="text-white font-bold text-lg leading-none">Nx3VPN</p>
           <p className={clsx(
             'text-xs mt-0.5 font-medium',
             status === 'connected' ? 'text-teal-400' : 'text-gray-400'
@@ -54,7 +54,7 @@ export function Sidebar() {
       </nav>
 
       <div className="mt-auto px-3 pt-4 border-t border-navy-700">
-        <p className="text-gray-600 text-xs text-center">SurfVPN · Free &amp; Open Source</p>
+        <p className="text-gray-600 text-xs text-center">Nx3VPN · Secure US VPN</p>
       </div>
     </aside>
   );

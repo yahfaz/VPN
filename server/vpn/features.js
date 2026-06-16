@@ -11,7 +11,7 @@
 const { execFileSync } = require('child_process');
 
 const isWin = process.platform === 'win32';
-const KILL_SWITCH_RULE = 'SurfVPN-KillSwitch';
+const KILL_SWITCH_RULE = 'Nx3VPN-KillSwitch';
 
 // ── CleanWeb: DNS-based ad / tracker blocking ────────────────────────────────
 // AdGuard public DNS — "standard" blocks ads + trackers, "advanced" (family)

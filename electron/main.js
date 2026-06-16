@@ -69,7 +69,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 620,
     backgroundColor: '#0E1A35',
-    title: 'SurfVPN',
+    title: 'Nx3VPN',
     icon: path.join(__dirname, 'icon.png'),
     show: false,
     webPreferences: {

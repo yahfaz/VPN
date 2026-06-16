@@ -1,9 +1,9 @@
 {
-  "name": "surfvpn",
-  "version": "1.0.2",
-  "description": "SurfVPN — a free open-source VPN client powered by VPNGate",
+  "name": "nx3vpn",
+  "version": "1.0.3",
+  "description": "Nx3VPN — a US-only VPN client powered by a self-hosted OpenVPN server",
   "author": {
-    "name": "SurfVPN",
+    "name": "Nx3VPN",
     "email": "ya@nx3corp.com"
   },
   "homepage": "https://github.com/yahfaz/VPN",
@@ -52,8 +52,8 @@
     "wait-on": "^9.0.10"
   },
   "build": {
-    "appId": "com.surfvpn.app",
-    "productName": "SurfVPN",
+    "appId": "com.nx3vpn.app",
+    "productName": "Nx3VPN",
     "copyright": "Copyright © 2026",
     "directories": {
       "buildResources": "assets",
@@ -90,9 +90,9 @@
         }
       ],
       "category": "Network",
-      "description": "Free VPN client powered by OpenVPN and VPNGate",
-      "maintainer": "SurfVPN <ya@nx3corp.com>",
-      "vendor": "SurfVPN"
+      "description": "US-only VPN client powered by a self-hosted OpenVPN server",
+      "maintainer": "Nx3VPN <ya@nx3corp.com>",
+      "vendor": "Nx3VPN"
     },
     "mac": {
       "icon": "assets/icon.png",

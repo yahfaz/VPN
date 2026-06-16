@@ -1,6 +1,6 @@
 # Using your own AWS VPS as the primary VPN server
 
-SurfVPN can connect to your own server as the **primary US endpoint**, with the
+Nx3VPN can connect to your own server as the **primary US endpoint**, with the
 free VPNGate servers kept only as an automatic backup. This is the most reliable
 setup: a guaranteed, always-on US IP with no dependency on VPNGate's flaky
 volunteer pool or its occasionally-blocked (HTTP 403) server list.
@@ -23,28 +23,28 @@ sudo bash setup-vps-openvpn.sh
 
 It installs OpenVPN, builds the certificates (ECDSA — no slow Diffie-Hellman
 wait), enables NAT, starts the service, and writes a ready client config to
-`./surfvpn-client.ovpn`.
+`./nx3vpn-client.ovpn`.
 
 > If auto-detection picks the wrong address, pass the public IP explicitly:
 > `sudo bash setup-vps-openvpn.sh 54.210.11.22`
 
 Then, in the AWS console, open **UDP 1194** inbound on the instance's Security Group.
 
-## 2. Install the client config (on the PC running SurfVPN)
+## 2. Install the client config (on the PC running Nx3VPN)
 
-Copy `surfvpn-client.ovpn` from the VPS to the SurfVPN machine and save it as
+Copy `nx3vpn-client.ovpn` from the VPS to the Nx3VPN machine and save it as
 `custom-server.ovpn` here:
 
 | OS         | Location                                          |
 | ---------- | ------------------------------------------------- |
-| Windows    | `%USERPROFILE%\.surfvpn\custom-server.ovpn`       |
-| macOS/Linux| `~/.surfvpn/custom-server.ovpn`                   |
+| Windows    | `%USERPROFILE%\.nx3vpn\custom-server.ovpn`       |
+| macOS/Linux| `~/.nx3vpn/custom-server.ovpn`                   |
 
-No rebuild needed — SurfVPN looks for this file on startup. (Alternatively set the
+No rebuild needed — Nx3VPN looks for this file on startup. (Alternatively set the
 `CUSTOM_OVPN` environment variable to the file's full path, or bake it into the
 installer by placing it next to the bundled resources.)
 
-## 3. Restart SurfVPN
+## 3. Restart Nx3VPN
 
 **My US Server** appears at the top of the server list and is selected by default.
 Click Connect:
@@ -62,6 +62,6 @@ Click Connect:
   streaming/downloads would incur a charge.
 - **Rotating IP** with a single VPS just reconnects to the same server (same IP).
   For real IP rotation you'd need multiple servers or the VPNGate pool.
-- To add more client devices, on the VPS run inside `/root/surfvpn-ca`:
+- To add more client devices, on the VPS run inside `/root/nx3vpn-ca`:
   `EASYRSA_BATCH=1 ./easyrsa build-client-full client2 nopass` and assemble a new
   `.ovpn` the same way the script does.

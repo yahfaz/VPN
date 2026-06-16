@@ -11,13 +11,13 @@ const { DEFAULT_SERVER_OVPN } = require('./defaultServerConfig');
 //
 // Discovery order (first hit wins):
 //   1. CUSTOM_OVPN env var — an absolute path to a .ovpn file
-//   2. ~/.surfvpn/custom-server.ovpn        (drop-in, no rebuild needed)
+//   2. ~/.nx3vpn/custom-server.ovpn         (drop-in, no rebuild needed)
 //   3. <bundled resources>/custom-server.ovpn  (placed next to the app)
 //   4. the baked-in default (defaultServerConfig.js)
 function readCustomConfig() {
   const candidates = [];
   if (process.env.CUSTOM_OVPN) candidates.push(process.env.CUSTOM_OVPN);
-  candidates.push(path.join(os.homedir(), '.surfvpn', 'custom-server.ovpn'));
+  candidates.push(path.join(os.homedir(), '.nx3vpn', 'custom-server.ovpn'));
   if (process.env.RESOURCES_PATH) {
     candidates.push(path.join(process.env.RESOURCES_PATH, 'custom-server.ovpn'));
   }

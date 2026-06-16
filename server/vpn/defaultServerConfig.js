@@ -8,7 +8,7 @@
 //
 // This is the baked-in DEFAULT primary US server, so the app connects to it
 // immediately without fetching any public list. It can be overridden at runtime
-// by CUSTOM_OVPN or ~/.surfvpn/custom-server.ovpn (see customServer.js).
+// by CUSTOM_OVPN or ~/.nx3vpn/custom-server.ovpn (see customServer.js).
 
 const DEFAULT_SERVER_OVPN = `client
 proto udp

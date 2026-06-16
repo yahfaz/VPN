@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #
-# SurfVPN — one-shot OpenVPN server setup for an Ubuntu AWS VPS (US region).
+# Nx3VPN — one-shot OpenVPN server setup for an Ubuntu AWS VPS (US region).
 #
 # Run this ON THE VPS as root:
 #   sudo bash setup-vps-openvpn.sh [PUBLIC_IP]
 #
 # If PUBLIC_IP is omitted it's auto-detected. When it finishes you'll have a
-# ready-to-use client config at ./surfvpn-client.ovpn — copy that to the machine
-# running SurfVPN (see VPS-SETUP.md for where to put it).
+# ready-to-use client config at ./nx3vpn-client.ovpn — copy that to the machine
+# running Nx3VPN (see VPS-SETUP.md for where to put it).
 #
 # Afterwards, in the AWS console, make sure the instance's Security Group allows
 # inbound UDP 1194 from 0.0.0.0/0 (and keep your SSH rule).
@@ -18,8 +18,8 @@ if [[ $EUID -ne 0 ]]; then echo "Please run as root (sudo)." >&2; exit 1; fi
 PUBLIC_IP="${1:-$(curl -fsS https://checkip.amazonaws.com || curl -fsS https://api.ipify.org)}"
 PORT=1194
 PROTO=udp
-CADIR="/root/surfvpn-ca"
-OUT="$(pwd)/surfvpn-client.ovpn"
+CADIR="/root/nx3vpn-ca"
+OUT="$(pwd)/nx3vpn-client.ovpn"
 
 echo "==> Public IP: ${PUBLIC_IP}"
 echo "==> Installing packages…"
@@ -119,8 +119,8 @@ echo "   ${OUT}"
 echo
 echo " Next steps:"
 echo "  1. In AWS, allow inbound UDP ${PORT} on this instance's Security Group."
-echo "  2. Copy ${OUT} to the PC running SurfVPN, to:"
-echo "       Windows:  %USERPROFILE%\\.surfvpn\\custom-server.ovpn"
-echo "       Linux/Mac: ~/.surfvpn/custom-server.ovpn"
-echo "  3. Restart SurfVPN — 'My US Server' will appear as the primary server."
+echo "  2. Copy ${OUT} to the PC running Nx3VPN, to:"
+echo "       Windows:  %USERPROFILE%\\.nx3vpn\\custom-server.ovpn"
+echo "       Linux/Mac: ~/.nx3vpn/custom-server.ovpn"
+echo "  3. Restart Nx3VPN — 'My US Server' will appear as the primary server."
 echo "============================================================"

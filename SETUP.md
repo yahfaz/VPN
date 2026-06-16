@@ -1,4 +1,4 @@
-# SurfVPN — Setup & Configuration Guide
+# Nx3VPN — Setup & Configuration Guide
 
 ## Requirements
 
@@ -32,19 +32,19 @@ Open http://localhost:5173 in your browser.
 npm install
 npm run prepare:win          # downloads openvpn.exe + wintun.dll into resources/win/
 npm run build                # compiles TypeScript + Vite
-npx electron-builder --win   # produces release\SurfVPN Setup 1.0.0.exe
+npx electron-builder --win   # produces release\Nx3VPN Setup 1.0.3.exe
 ```
 
 `prepare:win` only needs to run once (or with `--force` to re-download).  
-The resulting installer is in `release\SurfVPN Setup 1.0.0.exe` — no admin rights needed to install.
+The resulting installer is in `release\Nx3VPN Setup 1.0.3.exe` — no admin rights needed to install.
 
 ### Linux
 
 ```bash
 npm install
-npm run electron:build:appimage   # → release/SurfVPN-1.0.0.AppImage
+npm run electron:build:appimage   # → release/Nx3VPN-1.0.3.AppImage
 # or
-npm run electron:build:deb        # → release/surfvpn_1.0.0_amd64.deb
+npm run electron:build:deb        # → release/nx3vpn_1.0.3_amd64.deb
 ```
 
 Requires OpenVPN installed on the system:
