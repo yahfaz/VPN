@@ -56,8 +56,10 @@ Click Connect:
 
 ## Notes
 
-- **Bandwidth cost:** all your traffic exits via the VPS, so AWS egress (~$0.09/GB)
-  applies. Fine for normal browsing; watch it with heavy streaming/downloads.
+- **Bandwidth cost:** all your traffic exits via the VPS. AWS includes **100 GB/month
+  of free outbound data transfer** (account-wide, not just the 12-month trial), which
+  comfortably covers normal browsing. Past 100 GB/month it's ~$0.09/GB, so only heavy
+  streaming/downloads would incur a charge.
 - **Rotating IP** with a single VPS just reconnects to the same server (same IP).
   For real IP rotation you'd need multiple servers or the VPNGate pool.
 - To add more client devices, on the VPS run inside `/root/surfvpn-ca`:
