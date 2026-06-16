@@ -3,14 +3,17 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { DEFAULT_SERVER_OVPN } = require('./defaultServerConfig');
 
-// Loads a user-provided OpenVPN config — e.g. your own AWS VPS set up via
-// scripts/setup-vps-openvpn.sh — and exposes it as the primary US server.
+// Loads the OpenVPN config for the primary US server. By default this is the
+// baked-in self-hosted AWS server (defaultServerConfig.js), so the app connects
+// straight to it with no public-list fetch. It can be overridden at runtime:
 //
 // Discovery order (first hit wins):
 //   1. CUSTOM_OVPN env var — an absolute path to a .ovpn file
 //   2. ~/.surfvpn/custom-server.ovpn        (drop-in, no rebuild needed)
-//   3. <bundled resources>/custom-server.ovpn  (baked into the installer)
+//   3. <bundled resources>/custom-server.ovpn  (placed next to the app)
+//   4. the baked-in default (defaultServerConfig.js)
 function readCustomConfig() {
   const candidates = [];
   if (process.env.CUSTOM_OVPN) candidates.push(process.env.CUSTOM_OVPN);
@@ -24,7 +27,9 @@ function readCustomConfig() {
       if (raw && /^remote\s+\S+/m.test(raw)) return raw;
     } catch { /* try next */ }
   }
-  return null;
+  // Fall back to the baked-in default server (unless explicitly disabled).
+  if (process.env.DISABLE_DEFAULT_SERVER === 'true') return null;
+  return DEFAULT_SERVER_OVPN;
 }
 
 // Returns a server object shaped like the VPNGate ones, or null if no config is

@@ -181,4 +181,7 @@ async function getServers(force = false) {
 
 function getLastError() { return lastError; }
 
-module.exports = { getServers, getLastError };
+// Current cached servers without triggering a fetch (may be empty on cold start).
+function getCachedServers() { return cache.servers; }
+
+module.exports = { getServers, getLastError, getCachedServers };
