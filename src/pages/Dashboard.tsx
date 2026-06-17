@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import clsx from 'clsx';
-import { Clock, Shield, Lock, ChevronRight, Terminal, Wifi, WifiOff, RefreshCw } from 'lucide-react';
+import { Clock, Shield, Lock, ChevronRight, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 import { useVPNStore } from '../store/vpnStore';
 import { ConnectionButton } from '../components/ConnectionButton';
 import { SpeedChart } from '../components/SpeedChart';
@@ -28,7 +28,7 @@ export function Dashboard() {
     status, selectedServer, connectedServer, connectedSince,
     realIP, vpnIP, verifiedCountry, verifiedCountryCode, protocol, updateSpeed,
     cleanWeb, killSwitch, rotatingIP,
-    backendOnline, openvpnAvailable, connectionLog, serverFetchError,
+    backendOnline, openvpnAvailable, serverFetchError,
     connectToServerByIndex, vpngateServers, servers, refreshServers,
   } = useVPNStore();
 
@@ -39,7 +39,6 @@ export function Dashboard() {
   const server4 = allServers[3];
   const navigate = useNavigate();
   const elapsed = useTimer(connectedSince);
-  const [showLog, setShowLog] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const handleRefresh = async () => {
@@ -88,26 +87,7 @@ export function Dashboard() {
                 : 'Web preview — simulation only. Use the desktop app for real connections.'}
           </span>
         </div>
-        {connectionLog.length > 0 && (
-          <button
-            onClick={() => setShowLog(v => !v)}
-            className="flex items-center gap-1 text-xs opacity-70 hover:opacity-100"
-          >
-            <Terminal size={12} /> {showLog ? 'Hide' : 'Logs'}
-          </button>
-        )}
       </div>
-
-      {/* Connection log — auto-shown while connecting so retry progress is visible */}
-      {(showLog || status === 'connecting' || isVerifying) && connectionLog.length > 0 && (
-        <div className="card p-4 font-mono text-xs text-gray-400 max-h-40 overflow-y-auto space-y-0.5">
-          {connectionLog.slice(-50).map((line, i) => (
-            <div key={i} className={clsx(
-              line.startsWith('ERROR') ? 'text-red-400' : line.includes('Completed') ? 'text-teal-400' : ''
-            )}>{line}</div>
-          ))}
-        </div>
-      )}
 
       {/* Hero connection section */}
       <div className={clsx(

@@ -1,6 +1,6 @@
 {
   "name": "nx3vpn",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Nx3VPN — a US-only VPN client powered by a self-hosted OpenVPN server",
   "author": {
     "name": "Nx3VPN",
