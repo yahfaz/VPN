@@ -125,6 +125,10 @@ export const useVPNStore = create<VPNState & {
 
   const API_BASE = () => `http://${window.location.hostname || 'localhost'}:3001`;
 
+  // Tracks whether the user explicitly clicked Disconnect — prevents the
+  // auto-reconnect from firing after a manual disconnect.
+  let userDisconnected = false;
+
   // Feature flags sent to the backend at connect time. These map directly onto
   // real behaviour: CleanWeb → ad/tracker-blocking DNS, killSwitch → OS firewall,
   // rotatingIP → periodic reconnect to a different US server.
@@ -144,7 +148,7 @@ export const useVPNStore = create<VPNState & {
   };
 
   // Fetch VPNGate servers from backend, with self-recovering retry
-  const fetchVPNGateServers = async (attempt = 1, force = false) => {
+  const fetchVPNGateServers = async (attempt: number = 1, force: boolean = false): Promise<void> => {
     try {
       const url = `${API_BASE()}/api/servers${force ? '?force=true' : ''}`;
       const res = await fetch(url);
@@ -179,10 +183,7 @@ export const useVPNStore = create<VPNState & {
     const delay = Math.min(attempt * 2000 + 1000, 15000);
     setTimeout(() => fetchVPNGateServers(attempt + 1, force), delay);
   };
-  setTimeout(fetchVPNGateServers, 1500); // slight delay to let WS init first
-
-  // Track whether the user explicitly disconnected — prevents auto-reconnect after manual disconnect
-  let userDisconnected = false;
+  setTimeout(() => fetchVPNGateServers(), 1500); // slight delay to let WS init first
 
   return {
     // ── Connection state ──
