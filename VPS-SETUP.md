@@ -4,13 +4,47 @@ Nx3VPN connects **only** to your own server — a guaranteed, always-on US IP wi
 no dependency on any public server list. The free VPNGate pool is **off by
 default**; set `ENABLE_VPNGATE_FALLBACK=true` if you ever want it as a backup.
 
+---
+
+## Creating the AWS EC2 instance
+
+### Launch the instance
+
+1. Go to **EC2 → Instances → Launch instances** in the AWS console.
+2. **Name:** anything (e.g. `nx3vpn-server`).
+3. **AMI:** Ubuntu Server **22.04 LTS** (64-bit x86). Do not use 20.04 — `easy-rsa` behaves differently.
+4. **Instance type:** `t2.micro` (Free Tier eligible, enough for a VPN server).
+5. **Key pair:** create a new key pair → download the `.pem` file and save it somewhere safe. You need it to SSH in.
+6. **Network settings → Edit:**
+   - Leave VPC/subnet as default.
+   - **Allow SSH** from your IP (already ticked by default).
+   - **Add rule:** Type = `Custom UDP`, Port = `1194`, Source = `0.0.0.0/0`.
+     > ⚠️ This is the single most common missed step. Without it the VPN client sends packets that never reach the server — `tcpdump` shows 0 packets and the connection times out.
+7. Leave storage at the default 8 GB.
+8. Click **Launch instance**.
+
+### Allocate an Elastic IP (prevents the IP changing on reboot)
+
+1. Go to **EC2 → Elastic IPs → Allocate Elastic IP address → Allocate**.
+2. Select the new IP → **Actions → Associate Elastic IP address**.
+3. Choose your instance → **Associate**.
+4. Note the Elastic IP — this is the address baked into your `.ovpn` config.
+
+### Connect via SSH
+
+```bash
+chmod 400 your-key.pem
+ssh -i your-key.pem ubuntu@<Elastic-IP>
+```
+
+---
+
 ## Requirements
 
-- An Ubuntu VPS (20.04/22.04) **in a US region** (e.g. `us-east-1`, `us-west-2`).
-  The app verifies the tunnel's public IP is US and will refuse to stay connected
-  otherwise.
+- Ubuntu **22.04** in a **US region** (`us-east-1`, `us-west-2`, etc.).
+  The app verifies the tunnel's public IP is US and refuses to stay connected otherwise.
 - Root/sudo access to the VPS.
-- The instance's **Security Group must allow inbound UDP 1194** (plus your SSH rule).
+- **Security Group must allow inbound UDP 1194** — see step 6 above.
 
 ## 1. Set up the server (run once, on the VPS)
 
