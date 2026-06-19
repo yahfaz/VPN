@@ -53,6 +53,24 @@ Click Connect:
   rather than falling back to any free server.
 - CleanWeb, Kill Switch, and Rotating IP all work as normal.
 
+## Updating an existing server (MTU fix for calls)
+
+If you set up the server before v1.0.5 and users report choppy or dropped calls
+(Zoom, WhatsApp, Teams, Google Meet), SSH into the VPS and patch the server config:
+
+```bash
+sudo tee -a /etc/openvpn/server/server.conf <<'EOF'
+tun-mtu 1400
+fragment 1300
+mssfix 1300
+push "mssfix 1300"
+EOF
+sudo systemctl restart openvpn-server@server
+```
+
+No client reinstall needed — `mssfix` is applied automatically by the Nx3VPN app
+on every connection.
+
 ## Notes
 
 - **Bandwidth cost:** all your traffic exits via the VPS. AWS includes **100 GB/month

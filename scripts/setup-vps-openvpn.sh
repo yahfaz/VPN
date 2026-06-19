@@ -61,6 +61,14 @@ keepalive 10 120
 cipher AES-256-GCM
 data-ciphers AES-256-GCM:AES-128-GCM
 auth SHA256
+# MTU tuning — prevents VoIP / video-call fragmentation
+# AES-256-GCM + tls-crypt adds ~120 B overhead per packet; without these
+# settings 1500-byte UDP audio/video frames get fragmented at the IP layer,
+# causing burst packet loss and choppy calls.
+tun-mtu 1400
+fragment 1300
+mssfix 1300
+push "mssfix 1300"
 user nobody
 group nogroup
 persist-key
