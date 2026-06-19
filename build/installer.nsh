@@ -21,7 +21,17 @@
 
   nx3_download:
     DetailPrint "Downloading OpenVPN (one-time, ~5 MB)..."
-    ExecWait 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "try { Invoke-WebRequest -Uri ''https://swupdate.openvpn.org/community/releases/OpenVPN-2.6.14-I001-amd64.msi'' -OutFile ''$TEMP\nx3vpn-ovpn.msi'' -UseBasicParsing; Start-Process msiexec -Wait -ArgumentList ''/i'',''$TEMP\nx3vpn-ovpn.msi'',''/qn'',''/norestart''; Remove-Item ''$TEMP\nx3vpn-ovpn.msi'' -Force } catch { Write-Host $_.Exception.Message }"'
+    FileOpen $0 "$TEMP\nx3vpn-install.ps1" w
+    FileWrite $0 "$url = 'https://swupdate.openvpn.org/community/releases/OpenVPN-2.6.14-I001-amd64.msi'$\r$\n"
+    FileWrite $0 "$msi = Join-Path $env:TEMP 'nx3vpn-ovpn.msi'$\r$\n"
+    FileWrite $0 "try {$\r$\n"
+    FileWrite $0 "  Invoke-WebRequest -Uri $url -OutFile $msi -UseBasicParsing$\r$\n"
+    FileWrite $0 "  Start-Process msiexec -Wait -ArgumentList '/i', $msi, '/qn', '/norestart'$\r$\n"
+    FileWrite $0 "  Remove-Item $msi -Force -ErrorAction SilentlyContinue$\r$\n"
+    FileWrite $0 "} catch { Write-Host $_.Exception.Message }$\r$\n"
+    FileClose $0
+    ExecWait 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$TEMP\nx3vpn-install.ps1"'
+    Delete "$TEMP\nx3vpn-install.ps1"
 
   nx3_done:
   DetailPrint "OpenVPN ready."
