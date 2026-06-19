@@ -80,6 +80,22 @@ function patchConfig(raw, options = {}) {
   // `log-append` (the old hardcoded /tmp/nx3vpn.log path does not exist on Windows; logs are
   // already streamed live to the UI over the WebSocket).
 
+  // ── MTU tuning — prevents packet fragmentation during VoIP / video calls ──
+  // VPN tunnel overhead (OpenVPN header + AES-GCM IV + auth tag ≈ 80–120 B)
+  // means a 1500-byte Ethernet frame can only carry ~1380 B of payload. Call
+  // apps (Zoom, WhatsApp, Teams, Meet) send UDP audio/video at up to 1400 B;
+  // without these settings those packets get fragmented at the IP layer, causing
+  // burst packet loss and the choppy / dropped-call symptom.
+  //   tun-mtu 1400  — tells the OS the TUN interface MTU is 1400, so it never
+  //                    hands the tunnel a packet that needs fragmenting.
+  //   mssfix 1300   — clamps TCP segment size so TCP streams (web calls, HTTPS)
+  //                    also stay inside the tunnel MTU.
+  //   fragment 1300 — OpenVPN fragments its own outbound UDP at 1300 B as a
+  //                    belt-and-suspenders guard for any large UDP burst.
+  if (!/^tun-mtu\b/m.test(cfg)) cfg += '\ntun-mtu 1400';
+  if (!/^mssfix\b/m.test(cfg))  cfg += '\nmssfix 1300';
+  if (!/^fragment\b/m.test(cfg)) cfg += '\nfragment 1300';
+
   // CleanWeb — point the tunnel's DNS at an ad/tracker-blocking resolver. Added
   // last so it overrides anything stripped above. block-outside-dns (Windows)
   // prevents the OS from leaking queries to its configured resolver.

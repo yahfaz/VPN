@@ -43,7 +43,15 @@ function enableKillSwitch(serverIP, log = () => {}) {
   try {
     if (isWin) {
       run('netsh', ['advfirewall', 'set', 'allprofiles', 'firewallpolicy', 'blockinbound,blockoutbound']);
+      // Allow the encrypted OpenVPN tunnel to reach the VPS
       addWinAllowRule('remoteip', serverIP);
+      // Allow traffic that flows THROUGH the VPN tunnel. When the tunnel is up,
+      // apps route via the TUN adapter whose source IP is in 10.8.0.0/24 (the
+      // subnet pushed by our OpenVPN server). Without this rule blockoutbound
+      // drops every app packet because its destination is an arbitrary internet
+      // IP — not the VPS — even though the packet is legitimately tunnelled.
+      addWinAllowRule('localip', '10.8.0.0/24');
+      // Allow LAN and loopback destinations
       addWinAllowRule('remoteip', '10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.0.0/16,127.0.0.0/8');
     } else {
       // Linux best-effort via iptables (requires root; the app uses sudo for openvpn).

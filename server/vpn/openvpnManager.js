@@ -1,7 +1,7 @@
 'use strict';
 
 const { connect, disconnect } = require('../openvpn');
-const { getUSAServers, ONLY_USA } = require('./providers/vpngateProvider');
+const { getUSAServers, ONLY_USA, VPNGATE_FALLBACK } = require('./providers/vpngateProvider');
 const { verifyUSA } = require('./ipVerifier');
 const { getPublicIP } = require('../openvpn');
 const { enableKillSwitch, disableKillSwitch } = require('./features');
@@ -67,19 +67,29 @@ async function connectUSA(requestedServer, sendFn, isAborted, options = {}) {
   while (tried < MAX_ATTEMPTS) {
     if (isAborted()) break;
 
-    // Exhausted the current list — refresh from VPNGate and keep going. Clearing
-    // `failed` lets previously-failed-but-now-recovered servers be retried, so we
-    // can keep attempting even when the live US pool is small.
+    // Exhausted the current list. Clearing `failed` lets previously-failed
+    // servers be retried (they may recover), so we keep using the attempt budget.
     if (idx >= candidates.length) {
-      if (refreshes >= MAX_REFRESHES) break;
-      refreshes++;
-      sendFn('log', `Refreshing USA server list (refresh ${refreshes}/${MAX_REFRESHES})…`);
-      failed.clear();
-      await sleep(RETRY_BACKOFF_MS);
-      if (isAborted()) break;
-      candidates = await loadCandidates(true);
-      idx = 0;
-      if (candidates.length === 0) continue; // will count toward MAX_REFRESHES
+      if (candidates.length === 0) break;
+      if (VPNGATE_FALLBACK && refreshes < MAX_REFRESHES) {
+        // Fallback enabled: pull a fresh list from VPNGate and keep going.
+        refreshes++;
+        sendFn('log', `Refreshing USA server list (refresh ${refreshes}/${MAX_REFRESHES})…`);
+        failed.clear();
+        await sleep(RETRY_BACKOFF_MS);
+        if (isAborted()) break;
+        candidates = await loadCandidates(true);
+        idx = 0;
+        if (candidates.length === 0) continue;
+      } else {
+        // VPS-only: no external list to pull from — just retry the primary
+        // server until the attempt budget (MAX_ATTEMPTS) is spent.
+        failed.clear();
+        idx = 0;
+        sendFn('log', 'Retrying primary USA server…');
+        await sleep(RETRY_BACKOFF_MS);
+        if (isAborted()) break;
+      }
     }
 
     const candidate = candidates[idx++];
@@ -151,9 +161,10 @@ async function connectUSA(requestedServer, sendFn, isAborted, options = {}) {
     return false;
   }
 
-  const errorMsg = ONLY_USA
-    ? `Couldn't reach a verified USA server after ${tried} attempts. VPNGate's free US pool may be busy — please try again shortly.`
-    : `All ${tried} servers failed. Last error: ${lastErr?.message}`;
+  const errorMsg = VPNGATE_FALLBACK
+    ? `Couldn't reach a verified USA server after ${tried} attempts. Please try again shortly.`
+    : `Couldn't reach the USA server after ${tried} attempts (${lastErr?.message || 'timed out'}). `
+      + `Check the server is running and that inbound UDP 1194 is open.`;
   sendFn('error', errorMsg);
   const ip = await getPublicIP();
   sendFn('status', { status: 'disconnected', realIP: ip ?? 'unknown' });
