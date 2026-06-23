@@ -13,7 +13,7 @@
 const DEFAULT_SERVER_OVPN = `client
 proto udp
 explicit-exit-notify
-remote 34.225.239.148 1194
+remote 100.49.193.223 1194
 dev tun
 resolv-retry infinite
 nobind
