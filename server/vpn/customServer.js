@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { DEFAULT_SERVER_OVPN } = require('./defaultServerConfig');
+const { SECOND_SERVER_OVPN } = require('./secondServerConfig');
 
 // Loads the OpenVPN config for the primary US server. By default this is the
 // baked-in self-hosted AWS server (defaultServerConfig.js), so the app connects
@@ -72,4 +73,41 @@ function getCustomServer() {
   };
 }
 
-module.exports = { getCustomServer };
+function getSecondServer() {
+  if (process.env.DISABLE_DEFAULT_SERVER === 'true') return null;
+  const config = SECOND_SERVER_OVPN;
+  const remote = config.match(/^remote\s+(\S+)(?:\s+(\d+))?/m);
+  const host = remote ? remote[1] : 'custom2';
+  const port = remote && remote[2] ? parseInt(remote[2], 10) : 1194;
+  const protoM = config.match(/^proto\s+(\w+)/m);
+  const proto = protoM ? protoM[1].toLowerCase().replace(/[46]$/, '') : 'udp';
+
+  return {
+    id: 'custom-vps-2',
+    hostname: host,
+    ip: host,
+    country: 'United States',
+    countryCode: 'US',
+    flag: '🇺🇸',
+    city: 'My US Server 2',
+    region: 'Americas',
+    score: Number.MAX_SAFE_INTEGER - 1, // sorts just after the primary
+    ping: 0,
+    speedMbps: 0,
+    sessions: 0,
+    load: 0,
+    logType: '',
+    operator: 'Self-hosted',
+    config,
+    proto,
+    port,
+    firewallFriendly: true,
+    serverCount: 1,
+    type: 'standard',
+    favorite: true,
+    authUserPass: false,
+    custom: true,
+  };
+}
+
+module.exports = { getCustomServer, getSecondServer };

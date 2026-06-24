@@ -1,7 +1,7 @@
 'use strict';
 
 const { getServers, getCachedServers } = require('../../vpngate');
-const { getCustomServer } = require('../customServer');
+const { getCustomServer, getSecondServer } = require('../customServer');
 
 // Default true — set ONLY_USA=false to disable the US-only filter (dev/testing only)
 const ONLY_USA = process.env.ONLY_USA !== 'false';
@@ -15,23 +15,20 @@ const onlyUS = (list) => (!ONLY_USA ? list : list.filter(s => s.country === 'Uni
 
 async function getUSAServers(force = false) {
   const custom = getCustomServer();
+  const second = getSecondServer();
 
-  // VPS-only mode (default): the primary server is the only server, and we never
-  // touch the public VPNGate list. This makes the app fully independent of any
-  // external server list (no "free server list not found" failure is possible).
-  if (custom && !VPNGATE_FALLBACK) {
-    return [custom];
+  // VPS-only mode (default): return only the baked-in servers, never touch the
+  // public VPNGate list. This makes the app fully independent of any external
+  // server list.
+  if (!VPNGATE_FALLBACK) {
+    return [custom, second].filter(Boolean);
   }
 
-  if (custom) {
-    // Fallback enabled: primary first, plus background-refreshed VPNGate backup.
-    getServers(force).catch(() => {}); // fire-and-forget background refresh
-    const backup = onlyUS(getCachedServers()).filter(s => s.id !== custom.id);
-    return [custom, ...backup];
-  }
-
-  // No custom server configured at all — fall back to the public VPNGate list.
-  return onlyUS(await getServers(force));
+  // Fallback enabled: primary + secondary first, then VPNGate backup.
+  getServers(force).catch(() => {}); // fire-and-forget background refresh
+  const ownIds = new Set([custom?.id, second?.id].filter(Boolean));
+  const backup = onlyUS(getCachedServers()).filter(s => !ownIds.has(s.id));
+  return [...[custom, second].filter(Boolean), ...backup];
 }
 
 module.exports = { getUSAServers, ONLY_USA, VPNGATE_FALLBACK };
