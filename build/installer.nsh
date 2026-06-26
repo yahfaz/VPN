@@ -9,8 +9,12 @@
   IfFileExists "$INSTDIR\resources\win\openvpn-install.msi" nx3_bundled nx3_chk1
 
   nx3_bundled:
-    DetailPrint "Installing OpenVPN components..."
-    ExecWait 'msiexec /i "$INSTDIR\resources\win\openvpn-install.msi" /qn /norestart'
+    DetailPrint "Installing OpenVPN components (including TAP/Wintun driver)..."
+    ; ADDLOCAL=ALL forces every MSI feature — most importantly the tap-windows6
+    ; and Wintun kernel drivers — to install. A plain /qn install can skip the
+    ; driver, leaving openvpn.exe with no network adapter ("ECONNREFUSED" / stuck
+    ; connecting). The drivers are signed, so /qn installs them without a prompt.
+    ExecWait 'msiexec /i "$INSTDIR\resources\win\openvpn-install.msi" /qn /norestart ADDLOCAL=ALL'
     Goto nx3_done
 
   nx3_chk1:
@@ -26,7 +30,7 @@
     FileWrite $0 "$$msi = Join-Path $$env:TEMP 'nx3vpn-ovpn.msi'$\r$\n"
     FileWrite $0 "try {$\r$\n"
     FileWrite $0 "  Invoke-WebRequest -Uri $$url -OutFile $$msi -UseBasicParsing$\r$\n"
-    FileWrite $0 "  Start-Process msiexec -Wait -ArgumentList '/i', $$msi, '/qn', '/norestart'$\r$\n"
+    FileWrite $0 "  Start-Process msiexec -Wait -ArgumentList '/i', $$msi, '/qn', '/norestart', 'ADDLOCAL=ALL'$\r$\n"
     FileWrite $0 "  Remove-Item $$msi -Force -ErrorAction SilentlyContinue$\r$\n"
     FileWrite $0 "} catch { Write-Host $$_.Exception.Message }$\r$\n"
     FileClose $0

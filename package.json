@@ -16,7 +16,7 @@
     "dev:electron": "npx concurrently \"npm run dev:server\" \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "build": "tsc && vite build",
     "build:server": "node scripts/build-server.js",
-    "electron:build:win": "npm run build && npm run build:server && electron-builder --win",
+    "electron:build:win": "npm run prepare:win && npm run build && npm run build:server && electron-builder --win",
     "electron:build": "npm run build && npm run build:server && electron-builder --linux",
     "electron:build:deb": "npm run build && npm run build:server && electron-builder --linux deb",
     "electron:build:appimage": "npm run build && npm run build:server && electron-builder --linux AppImage",
