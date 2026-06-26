@@ -32,7 +32,7 @@ export function Dashboard() {
     connectToServerByIndex, vpngateServers, servers, refreshServers,
   } = useVPNStore();
 
-  const [showLog, setShowLog] = useState(false);
+  const [showLog, setShowLog] = useState(true);
 
   // Server 4 = index 3 (0-based) of the active server list. When the backend is
   // online we only ever surface real VPNGate servers — never the static
