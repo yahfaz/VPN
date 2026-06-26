@@ -93,7 +93,10 @@ function patchConfig(raw, options = {}) {
   //   fragment 1300 — OpenVPN fragments its own outbound UDP at 1300 B as a
   //                    belt-and-suspenders guard for any large UDP burst.
   if (!/^tun-mtu\b/m.test(cfg)) cfg += '\ntun-mtu 1400';
-  if (!/^mssfix\b/m.test(cfg))  cfg += '\nmssfix 1300';
+  // mssfix is NOT injected client-side: the server pushes it via PUSH_REPLY.
+  // OpenVPN 2.6 warns that mssfix can't be a push option, but that warning is
+  // non-fatal and the tunnel works fine. Adding it client-side too would only
+  // produce a duplicate and doesn't help.
   if (!/^fragment\b/m.test(cfg)) cfg += '\nfragment 1300';
 
   // CleanWeb — point the tunnel's DNS at an ad/tracker-blocking resolver. Added
@@ -122,6 +125,7 @@ async function connect(server, onLog, options = {}) {
     // during the connect phase we can report *why* instead of a bare timeout.
     const logTail = [];
     let settled = false;
+    let tlsEstablished = false; // true once the TLS handshake + PUSH phase completes
     const args = [
       '--config', configPath,
       '--verb', '3',
@@ -201,13 +205,24 @@ async function connect(server, onLog, options = {}) {
         established = true;
         getPublicIP().then(ip => succeed({ ip }));
       }
+      // Track when TLS handshake + push phase is done so post-PUSH option
+      // warnings don't get misidentified as fatal config errors.
+      if (msg.includes('Peer Connection Initiated') || msg.includes('PUSH_REPLY')) {
+        tlsEstablished = true;
+      }
       if (msg.includes('AUTH_FAILED')) {
         fail(new Error('Authentication failed (AUTH_FAILED)'));
       }
       if (msg.includes('TLS Error') || msg.includes('TLS key negotiation failed')) {
         fail(new Error('TLS handshake failed — server unreachable or replies blocked on this network'));
       }
-      if (msg.includes('Options error') || msg.includes('Unrecognized option')) {
+      // Only fail on Options errors that appear BEFORE the PUSH phase. After the
+      // server sends PUSH_REPLY, OpenVPN 2.6 logs non-fatal warnings about options
+      // the server tried to push but that aren't push-able (e.g. "mssfix cannot
+      // be used in this context ([PUSH-OPTIONS])"). Treating those as fatal kills
+      // a tunnel that is actually up and routing traffic correctly.
+      if ((msg.includes('Options error') || msg.includes('Unrecognized option'))
+          && !msg.includes('PUSH-OPTIONS') && !tlsEstablished) {
         fail(new Error('VPN config error — bad option in server config'));
       }
       // Windows TUN/TAP/wintun adapter problems. openvpn opens its UDP socket
