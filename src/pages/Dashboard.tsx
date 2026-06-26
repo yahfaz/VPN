@@ -151,6 +151,33 @@ export function Dashboard() {
         </div>
       </div>
 
+      {/* Connection Log (debug panel) — placed high so it's visible while connecting */}
+      <div className="card overflow-hidden">
+        <button
+          onClick={() => setShowLog(v => !v)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2 font-semibold uppercase tracking-wider text-xs">
+            <Terminal size={13} /> Connection Log {connectionLog.length > 0 && `(${connectionLog.length})`}
+          </span>
+          <ChevronDown size={14} className={clsx('transition-transform', showLog && 'rotate-180')} />
+        </button>
+        {showLog && (
+          <div className="border-t border-white/5 bg-navy-900 p-3 max-h-72 overflow-y-auto font-mono text-xs text-gray-400 space-y-0.5">
+            {connectionLog.length === 0
+              ? <p className="text-gray-600">No log entries yet — connect to see output.</p>
+              : connectionLog.map((line, i) => (
+                <p key={i} className={clsx(
+                  line.startsWith('ERROR') || line.startsWith('Failed') ? 'text-red-400' :
+                  line.includes('Completed') || line.includes('connected') ? 'text-teal-400' :
+                  'text-gray-400'
+                )}>{line}</p>
+              ))
+            }
+          </div>
+        )}
+      </div>
+
       {/* Servers loading banner */}
       {backendOnline && vpngateServers.length === 0 && (
         <div className="flex items-center justify-between px-4 py-2.5 rounded-xl text-sm border bg-yellow-500/10 border-yellow-500/25 text-yellow-400">
@@ -313,33 +340,6 @@ export function Dashboard() {
           </div>
         </div>
       )}
-
-      {/* Connection Log (debug panel) */}
-      <div className="card overflow-hidden">
-        <button
-          onClick={() => setShowLog(v => !v)}
-          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
-        >
-          <span className="flex items-center gap-2 font-semibold uppercase tracking-wider text-xs">
-            <Terminal size={13} /> Connection Log {connectionLog.length > 0 && `(${connectionLog.length})`}
-          </span>
-          <ChevronDown size={14} className={clsx('transition-transform', showLog && 'rotate-180')} />
-        </button>
-        {showLog && (
-          <div className="border-t border-white/5 bg-navy-900 p-3 max-h-48 overflow-y-auto font-mono text-xs text-gray-400 space-y-0.5">
-            {connectionLog.length === 0
-              ? <p className="text-gray-600">No log entries yet — connect to see output.</p>
-              : connectionLog.map((line, i) => (
-                <p key={i} className={clsx(
-                  line.startsWith('ERROR') ? 'text-red-400' :
-                  line.includes('Completed') || line.includes('connected') ? 'text-teal-400' :
-                  'text-gray-400'
-                )}>{line}</p>
-              ))
-            }
-          </div>
-        )}
-      </div>
 
       {/* Recent servers */}
       <div className="card p-4">
