@@ -2,12 +2,20 @@
 
 // ⚠️ SECURITY: this file embeds the client private key + tls-crypt key for the
 // self-hosted AWS OpenVPN server. Anyone with this file can connect to that
-// server. Keep this repository private. To rotate, run setup-vps-openvpn.sh
-// again on the VPS, issue a new client cert, and replace the config below.
+// server. Keep this repository private. To rotate, run the openvpn-install
+// script on the VPS, add a new client, and replace the cert/key blocks below
+// (and the tls-crypt key from /etc/openvpn/server/tc.key).
 //
-// This is the baked-in DEFAULT primary US server, so the app connects to it
-// immediately without fetching any public list. It can be overridden at runtime
-// by CUSTOM_OVPN or ~/.nx3vpn/custom-server.ovpn (see customServer.js).
+// This is the baked-in DEFAULT primary US server (34.225.239.148), so the app
+// connects to it immediately without fetching any public list. It can be
+// overridden at runtime by CUSTOM_OVPN or ~/.nx3vpn/custom-server.ovpn
+// (see customServer.js).
+//
+// Generated from `openvpn-install client add` on the VPS: matches the server's
+// current PKI (CA cn_hOA28vy0BRdznxKJ, verify-x509-name server_Kn2tXtAzg4RZY3EZ,
+// cipher AES-128-GCM). The remote IP is corrected to the Elastic IP and the
+// <tls-crypt> block is filled in from /etc/openvpn/server/tc.key (the generator
+// emits an empty block).
 
 const DEFAULT_SERVER_OVPN = `client
 dev tun
@@ -18,43 +26,48 @@ nobind
 persist-key
 persist-tun
 remote-cert-tls server
-cipher AES-256-GCM
-data-ciphers AES-256-GCM:AES-128-GCM
+verify-x509-name server_Kn2tXtAzg4RZY3EZ name
 auth SHA256
+auth-nocache
+cipher AES-128-GCM
+data-ciphers AES-128-GCM
+tls-version-min 1.2
+tls-cipher TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256
+tls-ciphersuites TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:TLS_CHACHA20_POLY1305_SHA256
 verb 3
 <ca>
 -----BEGIN CERTIFICATE-----
-MIIBwDCCAWWgAwIBAgIUCNIYoMsu2sQULdNpgKmsZDImY9YwCgYIKoZIzj0EAwIw
-FjEUMBIGA1UEAwwLRWFzeS1SU0EgQ0EwHhcNMjYwNjI0MTgwMDA0WhcNMzYwNjIx
-MTgwMDA0WjAWMRQwEgYDVQQDDAtFYXN5LVJTQSBDQTBZMBMGByqGSM49AgEGCCqG
-SM49AwEHA0IABGizgwIIBS+onMi2kcQYhtc1/FnYAopSkXMeXh0zTuPgnIYOypho
-eUp8IeuuP3AgY5sgITU6LRttCqbf4pdnTE2jgZAwgY0wDAYDVR0TBAUwAwEB/zAd
-BgNVHQ4EFgQUlDI/OEyamW1OghYo/Z5O2XWgQggwUQYDVR0jBEowSIAUlDI/OEya
-mW1OghYo/Z5O2XWgQgihGqQYMBYxFDASBgNVBAMMC0Vhc3ktUlNBIENBghQI0hig
-yy7axBQt02mAqaxkMiZj1jALBgNVHQ8EBAMCAQYwCgYIKoZIzj0EAwIDSQAwRgIh
-ANrjgUZnerBfHvMs1mL5QfBxJxcL/PDBvLwGD4h451/zAiEAkozepQOaNfixSoQ9
-IscG319Nc/NweQAnHTcsJ+RHYOM=
+MIIB2jCCAYCgAwIBAgIULtPK5ReeJ30VlPvc61mkrnyMVPIwCgYIKoZIzj0EAwIw
+HjEcMBoGA1UEAwwTY25faE9BMjh2eTBCUmR6bnhLSjAeFw0yNjA2MTYxNDM4MTFa
+Fw0zNjA2MTMxNDM4MTFaMB4xHDAaBgNVBAMME2NuX2hPQTI4dnkwQlJkem54S0ow
+WTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAAQEGJfsbpE+p9XbQ2XGPuPBYjv0hjH1
+6eRrdBfYNMuiuGpHDTdtJRJaUKUlfpo73DTzUi4XYZQTaUin3rzrApKdo4GbMIGY
+MA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFB2IUjO052awt8jixD6uqoRs9DBG
+MFkGA1UdIwRSMFCAFB2IUjO052awt8jixD6uqoRs9DBGoSKkIDAeMRwwGgYDVQQD
+DBNjbl9oT0EyOHZ5MEJSZHpueEtKghQu08rlF54nfRWU+9zrWaSufIxU8jALBgNV
+HQ8EBAMCAQYwCgYIKoZIzj0EAwIDSAAwRQIgcTO7TjLF1Qnoo2rRdieQgqZtTv6E
+63jdOCNVDi+K6yMCIQDCnEfiuF/B6Oeme9IEu3/o9QjEaXdvAgcS6/LYk3afwA==
 -----END CERTIFICATE-----
 </ca>
 <cert>
 -----BEGIN CERTIFICATE-----
-MIIByjCCAW+gAwIBAgIRAJ6I+Vzvlq1Kv3pEJ+1jw4kwCgYIKoZIzj0EAwIwFjEU
-MBIGA1UEAwwLRWFzeS1SU0EgQ0EwHhcNMjYwNjI0MTgwMDA0WhcNMjgwOTI2MTgw
-MDA0WjARMQ8wDQYDVQQDDAZjbGllbnQwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNC
-AATDh/DbveX8BMOSUB/Q/Zg6Gv3q2HSDFpkRU71+v8KONaj+nvAsfShMpg+srSnU
-KXrkcODGZXOyFRWAxHtZgr0jo4GiMIGfMAkGA1UdEwQCMAAwHQYDVR0OBBYEFCL9
-KHF0YLNNuqMIUQBSB1leeF0YMFEGA1UdIwRKMEiAFJQyPzhMmpltToIWKP2eTtl1
-oEIIoRqkGDAWMRQwEgYDVQQDDAtFYXN5LVJTQSBDQYIUCNIYoMsu2sQULdNpgKms
-ZDImY9YwEwYDVR0lBAwwCgYIKwYBBQUHAwIwCwYDVR0PBAQDAgeAMAoGCCqGSM49
-BAMCA0kAMEYCIQCO3y16C7c+zjx17MqLMa/RisS5sR77XlnARC1rrlRZ0gIhAPyV
-cZAUfNJuLlCyL/BF/rTL8dP3aTMicOOfdiZN4I+k
+MIIB3DCCAYKgAwIBAgIQf1JSfJnQWqMbFS7J8lr+ezAKBggqhkjOPQQDAjAeMRww
+GgYDVQQDDBNjbl9oT0EyOHZ5MEJSZHpueEtKMB4XDTI2MDYyNjE1MzcwN1oXDTM2
+MDYyMzE1MzcwN1owFTETMBEGA1UEAwwKbngzY2xpZW50MjBZMBMGByqGSM49AgEG
+CCqGSM49AwEHA0IABFoQwaWE8X4NDax4EzbJYQrIq0cDjo/hUo7RGRnbMQRoFtE1
+4hI6BnEdm7qncP5jYx4I405GK+tUqB6wuFtvWlKjgaowgacwCQYDVR0TBAIwADAd
+BgNVHQ4EFgQUXt1oj+z856RhDn0qnT55T3pnSLUwWQYDVR0jBFIwUIAUHYhSM7Tn
+ZrC3yOLEPq6qhGz0MEahIqQgMB4xHDAaBgNVBAMME2NuX2hPQTI4dnkwQlJkem54
+S0qCFC7TyuUXnid9FZT73OtZpK58jFTyMBMGA1UdJQQMMAoGCCsGAQUFBwMCMAsG
+A1UdDwQEAwIHgDAKBggqhkjOPQQDAgNIADBFAiEAvqemi/GhfWIxbC3W+Dm7L5pS
+pFnn6xEJcyNrzKrnfwECIG0nRs5acdxl6tO37/dDOBK1FK5j/08I+XZssQlXDwiS
 -----END CERTIFICATE-----
 </cert>
 <key>
 -----BEGIN PRIVATE KEY-----
-MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQggaIciSOcQEyvc+g2
-SxWqNaeIJ7xGWZWE50Yte1tfSo2hRANCAATDh/DbveX8BMOSUB/Q/Zg6Gv3q2HSD
-FpkRU71+v8KONaj+nvAsfShMpg+srSnUKXrkcODGZXOyFRWAxHtZgr0j
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQghIN+xnlSholrOFOA
+HAWxQeDj9vvnMoiOe+Q2wjvBtcKhRANCAARaEMGlhPF+DQ2seBM2yWEKyKtHA46P
+4VKO0RkZ2zEEaBbRNeISOgZxHZu6p3D+Y2MeCONORivrVKgesLhbb1pS
 -----END PRIVATE KEY-----
 </key>
 <tls-crypt>
