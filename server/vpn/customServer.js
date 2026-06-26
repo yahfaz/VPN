@@ -54,7 +54,11 @@ function getCustomServer() {
     flag: '🇺🇸',
     city: 'My US Server',
     region: 'Americas',
-    score: Number.MAX_SAFE_INTEGER, // always sorts ahead of VPNGate servers
+    // NOTE: 34.225.239.148 currently has a tls-crypt key mismatch on the server
+    // (server logs "could not determine wrapping"), so it can't connect yet.
+    // Until that's fixed it sorts BELOW the working second server so the app
+    // connects fast instead of waiting out a 30s timeout on this one.
+    score: Number.MAX_SAFE_INTEGER - 1,
     ping: 0,
     speedMbps: 0,
     sessions: 0,
@@ -91,7 +95,7 @@ function getSecondServer() {
     flag: '🇺🇸',
     city: 'My US Server 2',
     region: 'Americas',
-    score: Number.MAX_SAFE_INTEGER - 1, // sorts just after the primary
+    score: Number.MAX_SAFE_INTEGER, // working server — sorts first so it connects immediately
     ping: 0,
     speedMbps: 0,
     sessions: 0,

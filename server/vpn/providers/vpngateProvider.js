@@ -17,18 +17,22 @@ async function getUSAServers(force = false) {
   const custom = getCustomServer();
   const second = getSecondServer();
 
+  // Order both baked-in servers by score (highest first) so the working server
+  // is tried before one that's known to be failing.
+  const own = [custom, second].filter(Boolean).sort((a, b) => b.score - a.score);
+
   // VPS-only mode (default): return only the baked-in servers, never touch the
   // public VPNGate list. This makes the app fully independent of any external
   // server list.
   if (!VPNGATE_FALLBACK) {
-    return [custom, second].filter(Boolean);
+    return own;
   }
 
-  // Fallback enabled: primary + secondary first, then VPNGate backup.
+  // Fallback enabled: own servers first, then VPNGate backup.
   getServers(force).catch(() => {}); // fire-and-forget background refresh
-  const ownIds = new Set([custom?.id, second?.id].filter(Boolean));
+  const ownIds = new Set(own.map(s => s.id));
   const backup = onlyUS(getCachedServers()).filter(s => !ownIds.has(s.id));
-  return [...[custom, second].filter(Boolean), ...backup];
+  return [...own, ...backup];
 }
 
 module.exports = { getUSAServers, ONLY_USA, VPNGATE_FALLBACK };
