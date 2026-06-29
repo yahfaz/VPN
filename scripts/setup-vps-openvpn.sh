@@ -83,6 +83,17 @@ sysctl -p >/dev/null
 WAN_IF="$(ip route | awk '/default/ {print $5; exit}')"
 iptables -t nat -C POSTROUTING -s 10.8.0.0/24 -o "$WAN_IF" -j MASQUERADE 2>/dev/null \
   || iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -o "$WAN_IF" -j MASQUERADE
+
+# Explicitly allow forwarding of tunnel traffic. Another OpenVPN installer
+# (e.g. openvpn-install.sh) may have set the FORWARD chain's default policy to
+# DROP and added ACCEPT rules only for its own setup — in which case our tunnel
+# packets get NATed but then silently dropped in FORWARD, so the VPN connects
+# but no traffic flows. Inserting these rules at the top guarantees our subnet
+# is forwarded regardless of the default policy.
+iptables -C FORWARD -s 10.8.0.0/24 -j ACCEPT 2>/dev/null \
+  || iptables -I FORWARD 1 -s 10.8.0.0/24 -j ACCEPT
+iptables -C FORWARD -d 10.8.0.0/24 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 2>/dev/null \
+  || iptables -I FORWARD 1 -d 10.8.0.0/24 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 netfilter-persistent save
 
 echo "==> Starting OpenVPN…"
