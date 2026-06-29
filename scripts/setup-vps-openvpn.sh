@@ -86,7 +86,11 @@ iptables -t nat -C POSTROUTING -s 10.8.0.0/24 -o "$WAN_IF" -j MASQUERADE 2>/dev/
 netfilter-persistent save
 
 echo "==> Starting OpenVPN…"
-systemctl enable --now openvpn-server@server
+# enable --now only *starts* a stopped service; if an old instance is already
+# running it would keep the stale config + tls-crypt key in memory. Always
+# restart so the freshly generated certs/keys actually take effect.
+systemctl enable openvpn-server@server
+systemctl restart openvpn-server@server
 sleep 2
 systemctl --no-pager --full status openvpn-server@server | head -n 5 || true
 
