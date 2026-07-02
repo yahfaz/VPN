@@ -1,29 +1,38 @@
 'use strict';
 
 const { getServers, getCachedServers } = require('../../vpngate');
-const { getCustomServer } = require('../customServer');
+const { getCustomServer, getSecondServer } = require('../customServer');
 
 // Default true — set ONLY_USA=false to disable the US-only filter (dev/testing only)
 const ONLY_USA = process.env.ONLY_USA !== 'false';
 
+// By default the app connects ONLY to the configured primary server (the
+// self-hosted AWS VPS) and never falls back to the free VPNGate pool. Set
+// ENABLE_VPNGATE_FALLBACK=true to re-enable the public list as a backup.
+const VPNGATE_FALLBACK = process.env.ENABLE_VPNGATE_FALLBACK === 'true';
+
 const onlyUS = (list) => (!ONLY_USA ? list : list.filter(s => s.country === 'United States' || s.countryCode === 'US'));
 
 async function getUSAServers(force = false) {
-  // The self-hosted server (your AWS VPS) is the primary, always-available US
-  // endpoint, so the app connects to it instead of any public list.
   const custom = getCustomServer();
+  const second = getSecondServer();
 
-  if (custom) {
-    // Never block the VPS on VPNGate: use whatever backup servers are already
-    // cached and refresh them in the background. This keeps the app instant even
-    // when the VPNGate list is slow or blocked (HTTP 403).
-    getServers(force).catch(() => {}); // fire-and-forget background refresh
-    const backup = onlyUS(getCachedServers()).filter(s => s.id !== custom.id);
-    return [custom, ...backup];
+  // Order both baked-in servers by score (highest first) so the working server
+  // is tried before one that's known to be failing.
+  const own = [custom, second].filter(Boolean).sort((a, b) => b.score - a.score);
+
+  // VPS-only mode (default): return only the baked-in servers, never touch the
+  // public VPNGate list. This makes the app fully independent of any external
+  // server list.
+  if (!VPNGATE_FALLBACK) {
+    return own;
   }
 
-  // No custom server configured — fall back to the public VPNGate list.
-  return onlyUS(await getServers(force));
+  // Fallback enabled: own servers first, then VPNGate backup.
+  getServers(force).catch(() => {}); // fire-and-forget background refresh
+  const ownIds = new Set(own.map(s => s.id));
+  const backup = onlyUS(getCachedServers()).filter(s => !ownIds.has(s.id));
+  return [...own, ...backup];
 }
 
-module.exports = { getUSAServers, ONLY_USA };
+module.exports = { getUSAServers, ONLY_USA, VPNGATE_FALLBACK };

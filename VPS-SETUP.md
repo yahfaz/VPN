@@ -1,17 +1,50 @@
 # Using your own AWS VPS as the primary VPN server
 
-Nx3VPN can connect to your own server as the **primary US endpoint**, with the
-free VPNGate servers kept only as an automatic backup. This is the most reliable
-setup: a guaranteed, always-on US IP with no dependency on VPNGate's flaky
-volunteer pool or its occasionally-blocked (HTTP 403) server list.
+Nx3VPN connects **only** to your own server — a guaranteed, always-on US IP with
+no dependency on any public server list. The free VPNGate pool is **off by
+default**; set `ENABLE_VPNGATE_FALLBACK=true` if you ever want it as a backup.
+
+---
+
+## Creating the AWS EC2 instance
+
+### Launch the instance
+
+1. Go to **EC2 → Instances → Launch instances** in the AWS console.
+2. **Name:** anything (e.g. `nx3vpn-server`).
+3. **AMI:** Ubuntu Server **22.04 LTS** (64-bit x86). Do not use 20.04 — `easy-rsa` behaves differently.
+4. **Instance type:** `t2.micro` (Free Tier eligible, enough for a VPN server).
+5. **Key pair:** create a new key pair → download the `.pem` file and save it somewhere safe. You need it to SSH in.
+6. **Network settings → Edit:**
+   - Leave VPC/subnet as default.
+   - **Allow SSH** from your IP (already ticked by default).
+   - **Add rule:** Type = `Custom UDP`, Port = `1194`, Source = `0.0.0.0/0`.
+     > ⚠️ This is the single most common missed step. Without it the VPN client sends packets that never reach the server — `tcpdump` shows 0 packets and the connection times out.
+7. Leave storage at the default 8 GB.
+8. Click **Launch instance**.
+
+### Allocate an Elastic IP (prevents the IP changing on reboot)
+
+1. Go to **EC2 → Elastic IPs → Allocate Elastic IP address → Allocate**.
+2. Select the new IP → **Actions → Associate Elastic IP address**.
+3. Choose your instance → **Associate**.
+4. Note the Elastic IP — this is the address baked into your `.ovpn` config.
+
+### Connect via SSH
+
+```bash
+chmod 400 your-key.pem
+ssh -i your-key.pem ubuntu@<Elastic-IP>
+```
+
+---
 
 ## Requirements
 
-- An Ubuntu VPS (20.04/22.04) **in a US region** (e.g. `us-east-1`, `us-west-2`).
-  The app verifies the tunnel's public IP is US and will refuse to stay connected
-  otherwise.
+- Ubuntu **22.04** in a **US region** (`us-east-1`, `us-west-2`, etc.).
+  The app verifies the tunnel's public IP is US and refuses to stay connected otherwise.
 - Root/sudo access to the VPS.
-- The instance's **Security Group must allow inbound UDP 1194** (plus your SSH rule).
+- **Security Group must allow inbound UDP 1194** — see step 6 above.
 
 ## 1. Set up the server (run once, on the VPS)
 
@@ -49,10 +82,28 @@ installer by placing it next to the bundled resources.)
 **My US Server** appears at the top of the server list and is selected by default.
 Click Connect:
 
-- The app connects to your VPS first.
-- If the VPS is ever unreachable, it automatically falls back to VPNGate US servers
-  (the 10-attempt auto-retry loop handles the failover).
-- CleanWeb, Kill Switch, and Rotating IP all work the same as with VPNGate servers.
+- The app connects to your VPS, and only your VPS.
+- If a connection attempt fails, it retries the same server (up to 10 attempts)
+  rather than falling back to any free server.
+- CleanWeb, Kill Switch, and Rotating IP all work as normal.
+
+## Updating an existing server (MTU fix for calls)
+
+If you set up the server before v1.0.5 and users report choppy or dropped calls
+(Zoom, WhatsApp, Teams, Google Meet), SSH into the VPS and patch the server config:
+
+```bash
+sudo tee -a /etc/openvpn/server/server.conf <<'EOF'
+tun-mtu 1400
+fragment 1300
+mssfix 1300
+push "mssfix 1300"
+EOF
+sudo systemctl restart openvpn-server@server
+```
+
+No client reinstall needed — `mssfix` is applied automatically by the Nx3VPN app
+on every connection.
 
 ## Notes
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import clsx from 'clsx';
-import { Clock, Shield, Lock, ChevronRight, Terminal, Wifi, WifiOff, RefreshCw } from 'lucide-react';
+import { Clock, Shield, Lock, ChevronRight, Wifi, WifiOff, RefreshCw, Terminal, ChevronDown } from 'lucide-react';
 import { useVPNStore } from '../store/vpnStore';
 import { ConnectionButton } from '../components/ConnectionButton';
 import { SpeedChart } from '../components/SpeedChart';
@@ -28,9 +28,11 @@ export function Dashboard() {
     status, selectedServer, connectedServer, connectedSince,
     realIP, vpnIP, verifiedCountry, verifiedCountryCode, protocol, updateSpeed,
     cleanWeb, killSwitch, rotatingIP,
-    backendOnline, openvpnAvailable, connectionLog, serverFetchError,
+    backendOnline, openvpnAvailable, serverFetchError, connectionLog,
     connectToServerByIndex, vpngateServers, servers, refreshServers,
   } = useVPNStore();
+
+  const [showLog, setShowLog] = useState(false);
 
   // Server 4 = index 3 (0-based) of the active server list. When the backend is
   // online we only ever surface real VPNGate servers — never the static
@@ -39,7 +41,6 @@ export function Dashboard() {
   const server4 = allServers[3];
   const navigate = useNavigate();
   const elapsed = useTimer(connectedSince);
-  const [showLog, setShowLog] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const handleRefresh = async () => {
@@ -88,26 +89,7 @@ export function Dashboard() {
                 : 'Web preview — simulation only. Use the desktop app for real connections.'}
           </span>
         </div>
-        {connectionLog.length > 0 && (
-          <button
-            onClick={() => setShowLog(v => !v)}
-            className="flex items-center gap-1 text-xs opacity-70 hover:opacity-100"
-          >
-            <Terminal size={12} /> {showLog ? 'Hide' : 'Logs'}
-          </button>
-        )}
       </div>
-
-      {/* Connection log — auto-shown while connecting so retry progress is visible */}
-      {(showLog || status === 'connecting' || isVerifying) && connectionLog.length > 0 && (
-        <div className="card p-4 font-mono text-xs text-gray-400 max-h-40 overflow-y-auto space-y-0.5">
-          {connectionLog.slice(-50).map((line, i) => (
-            <div key={i} className={clsx(
-              line.startsWith('ERROR') ? 'text-red-400' : line.includes('Completed') ? 'text-teal-400' : ''
-            )}>{line}</div>
-          ))}
-        </div>
-      )}
 
       {/* Hero connection section */}
       <div className={clsx(
@@ -331,6 +313,33 @@ export function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* Connection Log (debug panel) — collapsed by default, kept for troubleshooting */}
+      <div className="card overflow-hidden">
+        <button
+          onClick={() => setShowLog(v => !v)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-2 font-semibold uppercase tracking-wider text-xs">
+            <Terminal size={13} /> Connection Log {connectionLog.length > 0 && `(${connectionLog.length})`}
+          </span>
+          <ChevronDown size={14} className={clsx('transition-transform', showLog && 'rotate-180')} />
+        </button>
+        {showLog && (
+          <div className="border-t border-white/5 bg-navy-900 p-3 max-h-72 overflow-y-auto font-mono text-xs text-gray-400 space-y-0.5">
+            {connectionLog.length === 0
+              ? <p className="text-gray-600">No log entries yet — connect to see output.</p>
+              : connectionLog.map((line, i) => (
+                <p key={i} className={clsx(
+                  line.startsWith('ERROR') || line.startsWith('Failed') ? 'text-red-400' :
+                  line.includes('Completed') || line.includes('connected') ? 'text-teal-400' :
+                  'text-gray-400'
+                )}>{line}</p>
+              ))
+            }
+          </div>
+        )}
+      </div>
 
       {/* Recent servers */}
       <div className="card p-4">

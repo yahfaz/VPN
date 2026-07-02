@@ -80,6 +80,25 @@ function patchConfig(raw, options = {}) {
   // `log-append` (the old hardcoded /tmp/nx3vpn.log path does not exist on Windows; logs are
   // already streamed live to the UI over the WebSocket).
 
+  // ── MTU tuning — prevents packet fragmentation during VoIP / video calls ──
+  // VPN tunnel overhead (OpenVPN header + AES-GCM IV + auth tag ≈ 80–120 B)
+  // means a 1500-byte Ethernet frame can only carry ~1380 B of payload. Call
+  // apps (Zoom, WhatsApp, Teams, Meet) send UDP audio/video at up to 1400 B;
+  // without these settings those packets get fragmented at the IP layer, causing
+  // burst packet loss and the choppy / dropped-call symptom.
+  //   tun-mtu 1400  — tells the OS the TUN interface MTU is 1400, so it never
+  //                    hands the tunnel a packet that needs fragmenting.
+  //   mssfix 1300   — clamps TCP segment size so TCP streams (web calls, HTTPS)
+  //                    also stay inside the tunnel MTU.
+  //   fragment 1300 — OpenVPN fragments its own outbound UDP at 1300 B as a
+  //                    belt-and-suspenders guard for any large UDP burst.
+  if (!/^tun-mtu\b/m.test(cfg)) cfg += '\ntun-mtu 1400';
+  // mssfix is NOT injected client-side: the server pushes it via PUSH_REPLY.
+  // OpenVPN 2.6 warns that mssfix can't be a push option, but that warning is
+  // non-fatal and the tunnel works fine. Adding it client-side too would only
+  // produce a duplicate and doesn't help.
+  if (!/^fragment\b/m.test(cfg)) cfg += '\nfragment 1300';
+
   // CleanWeb — point the tunnel's DNS at an ad/tracker-blocking resolver. Added
   // last so it overrides anything stripped above. block-outside-dns (Windows)
   // prevents the OS from leaking queries to its configured resolver.
@@ -102,6 +121,11 @@ async function connect(server, onLog, options = {}) {
   fs.writeFileSync(authPath, 'vpn\nvpn\n', { mode: 0o600 });
 
   return new Promise((resolve, reject) => {
+    // Keep a rolling tail of the most recent output so that if openvpn dies
+    // during the connect phase we can report *why* instead of a bare timeout.
+    const logTail = [];
+    let settled = false;
+    let tlsEstablished = false; // true once the TLS handshake + PUSH phase completes
     const args = [
       '--config', configPath,
       '--verb', '3',
@@ -150,42 +174,68 @@ async function connect(server, onLog, options = {}) {
     // A reachable VPNGate server completes the handshake in well under 30s;
     // anything slower is effectively blocked/unreachable from this network.
     const timer = setTimeout(() => {
-      reject(new Error('Connection timed out after 30s'));
-      disconnect();
+      fail(new Error('Connection timed out after 30s — no reply from server. '
+        + 'The server replies but they never reached this PC (check the network/firewall), '
+        + 'or the TUN adapter could not be opened.'));
     }, 30000);
+
+    // Single-shot settle helpers so a reject and the later exit handler don't
+    // both fire (which would crash with "promise already settled" noise).
+    function fail(err) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(err);
+      disconnect();
+    }
+    function succeed(value) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(value);
+    }
 
     function handleOutput(data) {
       const msg = data.toString();
       onLog(msg.trim());
+      logTail.push(msg.trim());
+      if (logTail.length > 12) logTail.shift();
 
       if (msg.includes('Initialization Sequence Completed')) {
-        clearTimeout(timer);
         established = true;
-        getPublicIP().then(ip => resolve({ ip }));
+        getPublicIP().then(ip => succeed({ ip }));
+      }
+      // Track when TLS handshake + push phase is done so post-PUSH option
+      // warnings don't get misidentified as fatal config errors.
+      if (msg.includes('Peer Connection Initiated') || msg.includes('PUSH_REPLY')) {
+        tlsEstablished = true;
       }
       if (msg.includes('AUTH_FAILED')) {
-        clearTimeout(timer);
-        reject(new Error('Authentication failed (AUTH_FAILED)'));
-        disconnect();
+        fail(new Error('Authentication failed (AUTH_FAILED)'));
       }
-      if (msg.includes('TLS Error')) {
-        clearTimeout(timer);
-        reject(new Error('TLS handshake failed — server may be offline'));
-        disconnect();
+      if (msg.includes('TLS Error') || msg.includes('TLS key negotiation failed')) {
+        fail(new Error('TLS handshake failed — server unreachable or replies blocked on this network'));
       }
-      if (msg.includes('Options error') || msg.includes('Unrecognized option')) {
-        clearTimeout(timer);
-        reject(new Error('VPN config error — bad option in server config'));
-        disconnect();
+      // Only fail on Options errors that appear BEFORE the PUSH phase. After the
+      // server sends PUSH_REPLY, OpenVPN 2.6 logs non-fatal warnings about options
+      // the server tried to push but that aren't push-able (e.g. "mssfix cannot
+      // be used in this context ([PUSH-OPTIONS])"). Treating those as fatal kills
+      // a tunnel that is actually up and routing traffic correctly.
+      if ((msg.includes('Options error') || msg.includes('Unrecognized option'))
+          && !msg.includes('PUSH-OPTIONS') && !tlsEstablished) {
+        fail(new Error('VPN config error — bad option in server config'));
+      }
+      // Windows TUN/TAP/wintun adapter problems. openvpn opens its UDP socket
+      // (the server therefore sees the client's hello) BEFORE opening the tunnel
+      // adapter — so a missing/locked driver shows up here as the connection
+      // dying right after the handshake starts. This is the most common cause of
+      // "stuck connecting": the OpenVPN driver was never installed on this PC.
+      if (/There are no TAP-Windows adapters|All TAP-Windows adapters .* are currently in use|wintun.*(error|fail)|Cannot find a free TAP|CreateFile failed on TAP|Note: Cannot open TUN\/TAP|There was a problem opening|exit_event/i.test(msg)) {
+        fail(new Error('VPN network adapter not available — the OpenVPN/TAP driver is not installed. '
+          + 'Reinstall the app (it bundles the driver) or install OpenVPN once from openvpn.net.'));
       }
       if (msg.includes('Exiting due to fatal error')) {
-        clearTimeout(timer);
-        reject(new Error('OpenVPN fatal error — check logs for details'));
-        disconnect();
-      }
-      if (msg.includes('SIGTERM') || msg.includes('process exiting')) {
-        clearTimeout(timer);
-        reject(new Error('OpenVPN process exited unexpectedly'));
+        fail(new Error(`OpenVPN fatal error: ${logTail.join(' | ')}`));
       }
     }
 
@@ -194,19 +244,23 @@ async function connect(server, onLog, options = {}) {
 
     proc.on('exit', (code) => {
       proc = null;
-      clearTimeout(timer);
-      // Only report *unexpected* drops of an established tunnel. Exits during
-      // the connect phase (handled by the reject paths above) or triggered by
-      // our own disconnect() must not fire the callback — otherwise the UI
-      // flaps to "disconnected" in the middle of an auto-retry sequence.
+      // If openvpn dies during the connect phase (before the tunnel is up) and
+      // we didn't kill it ourselves, surface it NOW with the captured log tail
+      // instead of letting the caller wait out the full 30s timeout. This is the
+      // path a missing TUN/TAP driver takes when its error string isn't matched
+      // above — the process simply exits.
+      if (!established && !intentionalExit) {
+        fail(new Error(`OpenVPN exited (code ${code}) before connecting: ${logTail.join(' | ') || 'no output'}`));
+      }
+      // Only report *unexpected* drops of an established tunnel. Our own
+      // disconnect() sets intentionalExit so the UI doesn't flap mid-retry.
       if (established && !intentionalExit && onExit) onExit(code);
       established = false;
       intentionalExit = false;
     });
 
     proc.on('error', (err) => {
-      clearTimeout(timer);
-      reject(new Error(`Failed to start OpenVPN: ${err.message}`));
+      fail(new Error(`Failed to start OpenVPN: ${err.message}`));
     });
   });
 }
