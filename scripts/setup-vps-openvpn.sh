@@ -25,7 +25,18 @@ echo "==> Public IP: ${PUBLIC_IP}"
 echo "==> Installing packages…"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
-apt-get install -y openvpn easy-rsa iptables-persistent curl
+apt-get install -y openvpn easy-rsa iptables-persistent curl iproute2
+
+# Disable other OpenVPN installers' services that manage/flush iptables and can
+# fight this setup (e.g. the angristan openvpn-install.sh). Leaving them enabled
+# has caused the NAT rule to be flushed on stop, which breaks connectivity while
+# the VPN still appears to connect. We keep ours (openvpn-server@server) only.
+for svc in openvpn.service iptables-openvpn.service; do
+  if systemctl list-unit-files 2>/dev/null | grep -q "^${svc}"; then
+    echo "==> Disabling conflicting service: ${svc}"
+    systemctl disable --now "${svc}" 2>/dev/null || true
+  fi
+done
 
 echo "==> Building PKI (CA, server + client certs, tls-crypt key)…"
 rm -rf "$CADIR"
@@ -76,25 +87,42 @@ persist-tun
 verb 3
 EOF
 
-echo "==> Enabling IP forwarding + NAT…"
+echo "==> Enabling IP forwarding + NAT (self-healing)…"
 sed -i 's/^#\?net.ipv4.ip_forward=.*/net.ipv4.ip_forward=1/' /etc/sysctl.conf
 grep -q '^net.ipv4.ip_forward=1' /etc/sysctl.conf || echo 'net.ipv4.ip_forward=1' >> /etc/sysctl.conf
 sysctl -p >/dev/null
+
+# Install a NAT helper that (re)applies forwarding + MASQUERADE + FORWARD-ACCEPT
+# rules idempotently. It auto-detects the WAN interface each run, so it keeps
+# working even if the NIC name changes after an instance resize.
+cat > /usr/local/sbin/nx3vpn-nat.sh <<'NATEOF'
+#!/usr/bin/env bash
+set -e
 WAN_IF="$(ip route | awk '/default/ {print $5; exit}')"
+sysctl -w net.ipv4.ip_forward=1 >/dev/null
 iptables -t nat -C POSTROUTING -s 10.8.0.0/24 -o "$WAN_IF" -j MASQUERADE 2>/dev/null \
   || iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -o "$WAN_IF" -j MASQUERADE
-
-# Explicitly allow forwarding of tunnel traffic. Another OpenVPN installer
-# (e.g. openvpn-install.sh) may have set the FORWARD chain's default policy to
-# DROP and added ACCEPT rules only for its own setup — in which case our tunnel
-# packets get NATed but then silently dropped in FORWARD, so the VPN connects
-# but no traffic flows. Inserting these rules at the top guarantees our subnet
-# is forwarded regardless of the default policy.
 iptables -C FORWARD -s 10.8.0.0/24 -j ACCEPT 2>/dev/null \
   || iptables -I FORWARD 1 -s 10.8.0.0/24 -j ACCEPT
 iptables -C FORWARD -d 10.8.0.0/24 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 2>/dev/null \
   || iptables -I FORWARD 1 -d 10.8.0.0/24 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
-netfilter-persistent save
+NATEOF
+chmod +x /usr/local/sbin/nx3vpn-nat.sh
+
+WAN_IF="$(ip route | awk '/default/ {print $5; exit}')"
+/usr/local/sbin/nx3vpn-nat.sh
+netfilter-persistent save || true
+
+# Re-apply NAT on EVERY OpenVPN (re)start and on reboot. This is the key
+# robustness fix: even if something flushes iptables (another tool, an AMI boot
+# script, a manual mistake), the rules are restored the moment the VPN starts —
+# so it can never again be "connected but no traffic flows".
+install -d /etc/systemd/system/openvpn-server@server.service.d
+cat > /etc/systemd/system/openvpn-server@server.service.d/nx3vpn-nat.conf <<'DROPEOF'
+[Service]
+ExecStartPre=/usr/local/sbin/nx3vpn-nat.sh
+DROPEOF
+systemctl daemon-reload
 
 echo "==> Starting OpenVPN…"
 # enable --now only *starts* a stopped service; if an old instance is already
@@ -135,15 +163,31 @@ $(cat pki/tc.key)
 EOF
 
 chmod 600 "$OUT"
+
+echo
+echo "==> Self-test…"
+FAIL=0
+if ss -lun 2>/dev/null | grep -q ":${PORT} "; then echo "  [OK]  listening on UDP ${PORT}"; else echo "  [FAIL] not listening on UDP ${PORT}"; FAIL=1; fi
+if [[ "$(cat /proc/sys/net/ipv4/ip_forward)" == "1" ]]; then echo "  [OK]  IP forwarding enabled"; else echo "  [FAIL] IP forwarding disabled"; FAIL=1; fi
+if iptables -t nat -C POSTROUTING -s 10.8.0.0/24 -o "$WAN_IF" -j MASQUERADE 2>/dev/null; then echo "  [OK]  NAT MASQUERADE present on ${WAN_IF}"; else echo "  [FAIL] NAT MASQUERADE missing"; FAIL=1; fi
+if systemctl is-active --quiet openvpn-server@server; then echo "  [OK]  openvpn-server@server is active"; else echo "  [FAIL] service not active"; FAIL=1; fi
+if [[ -f /etc/systemd/system/openvpn-server@server.service.d/nx3vpn-nat.conf ]]; then echo "  [OK]  NAT self-heal drop-in installed"; else echo "  [FAIL] NAT self-heal drop-in missing"; FAIL=1; fi
+if [[ $FAIL -eq 0 ]]; then echo "  ==> ALL CHECKS PASSED — server is production-ready."; else echo "  ==> SOME CHECKS FAILED — review the [FAIL] lines above before using."; fi
+
 echo
 echo "============================================================"
-echo " Done. Client config written to:"
+if [[ $FAIL -eq 0 ]]; then echo " Done ✅  Client config written to:"; else echo " Done (with warnings)  Client config written to:"; fi
 echo "   ${OUT}"
 echo
 echo " Next steps:"
-echo "  1. In AWS, allow inbound UDP ${PORT} on this instance's Security Group."
-echo "  2. Copy ${OUT} to the PC running Nx3VPN, to:"
+echo "  1. AWS Security Group (REQUIRED — the one thing this script can't do):"
+echo "       allow inbound UDP ${PORT} from 0.0.0.0/0 on this instance."
+echo "       This is the #1 reason a client gets stuck 'Connecting…'."
+echo "  2. To bake this server into the app build, paste ${OUT} into"
+echo "       server/vpn/defaultServerConfig.js (or secondServerConfig.js)."
+echo "     To use it without rebuilding, copy ${OUT} to the client PC at:"
 echo "       Windows:  %USERPROFILE%\\.nx3vpn\\custom-server.ovpn"
 echo "       Linux/Mac: ~/.nx3vpn/custom-server.ovpn"
-echo "  3. Restart Nx3VPN — 'My US Server' will appear as the primary server."
+echo "  3. Anytime, verify this server's health (read-only, safe to re-run):"
+echo "       sudo bash check-vps-openvpn.sh"
 echo "============================================================"
